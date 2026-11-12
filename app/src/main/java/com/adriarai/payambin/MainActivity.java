@@ -33,7 +33,8 @@ import java.util.List;
 public class MainActivity extends Activity {
     private static final int ACCENT = Color.parseColor("#0F766E");
 
-    private TextView status, address, pin, permInfo;
+    private TextView status, address, pin, permInfo, updInfo;
+    private Button installPermBtn;
     private Button toggle, permsBtn, notifBtn, batteryBtn;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
@@ -154,6 +155,31 @@ public class MainActivity extends Activity {
         portBtn.setOnClickListener(v -> askPort());
         root.addView(portBtn, lp(8));
 
+        // آپدیت
+        TextView h3 = text(16, Color.parseColor("#0F172A"), true);
+        h3.setText("آپدیت");
+        h3.setPadding(0, dp(18), 0, dp(4));
+        root.addView(h3);
+
+        updInfo = text(14, Color.parseColor("#334155"), false);
+        root.addView(updInfo);
+
+        installPermBtn = button("اجازهٔ نصب آپدیت‌ها");
+        installPermBtn.setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= 26) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:" + getPackageName())));
+                } catch (Exception ignored) {
+                }
+            }
+        });
+        root.addView(installPermBtn, lp(8));
+
+        Button checkUpd = button("بررسی آپدیت الان");
+        checkUpd.setOnClickListener(v -> Updater.checkAsync(this));
+        root.addView(checkUpd, lp(8));
+
         TextView help = text(13, Color.parseColor("#64748B"), false);
         help.setLineSpacing(dp(3), 1f);
         help.setPadding(0, dp(18), 0, 0);
@@ -235,6 +261,12 @@ public class MainActivity extends Activity {
         permsBtn.setVisibility(sms && send && contacts ? View.GONE : View.VISIBLE);
         notifBtn.setText(notif ? "تنظیمات دسترسی اعلان‌ها" : "دسترسی به اعلان‌ها (بله، تلگرام، واتساپ و ...)");
         batteryBtn.setVisibility(battery ? View.GONE : View.VISIBLE);
+
+        String us = Updater.status;
+        updInfo.setText("نسخهٔ نصب‌شده: " + Updater.currentVersion(this)
+                + (us == null || us.isEmpty() ? "" : "\n" + us));
+        boolean canInstall = Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
+        installPermBtn.setVisibility(canInstall ? View.GONE : View.VISIBLE);
     }
 
     private static String mark(boolean ok) {

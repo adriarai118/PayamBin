@@ -56,6 +56,14 @@ public final class Prefs {
         sp(c).edit().putBoolean("want_running", v).apply();
     }
 
+    public static long lastUpdateCheck(Context c) {
+        return sp(c).getLong("last_update_check", 0);
+    }
+
+    public static void setLastUpdateCheck(Context c, long t) {
+        sp(c).edit().putLong("last_update_check", t).apply();
+    }
+
     public static synchronized String newToken(Context c) {
         byte[] b = new byte[24];
         RND.nextBytes(b);

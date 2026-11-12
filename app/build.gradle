@@ -10,8 +10,10 @@ android {
         applicationId 'com.adriarai.payambin'
         minSdk 23
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+        // شمارهٔ نسخه = شمارهٔ اجرای GitHub Actions (برای آپدیت خودکار)
+        def run = (System.getenv("GITHUB_RUN_NUMBER") ?: "1") as Integer
+        versionCode run
+        versionName "1." + run
     }
 
     // کلید ثابت تا نسخه‌های بعدی روی نسخهٔ قبلی نصب شوند (بدون حذف برنامه)

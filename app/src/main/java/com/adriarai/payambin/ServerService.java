@@ -39,6 +39,7 @@ public class ServerService extends Service {
             // اگر IP عوض شد، اعلان به‌روز شود
             if (running) {
                 updateNotification();
+                Updater.maybeCheck(ServerService.this);
                 handler.postDelayed(this, 30_000);
             }
         }
@@ -109,7 +110,7 @@ public class ServerService extends Service {
             }
             acquireLocks();
             registerSmsObserver();
-            handler.post(refresher);
+            handler.postDelayed(refresher, 20_000);
         }
         return START_STICKY;
     }

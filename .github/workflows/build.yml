@@ -34,10 +34,10 @@ jobs:
           name: PayamBin-apk
           path: PayamBin.apk
 
-      - name: Publish to "latest" release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: PayamBin – latest build
+          tag_name: v${{ github.run_number }}
+          name: PayamBin v${{ github.run_number }}
           files: PayamBin.apk
           make_latest: true
