@@ -33,7 +33,7 @@
         android:label="پیام‌بین"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
-        android:theme="@android:style/Theme.Material.Light.DarkActionBar"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:supportsRtl="true"
         android:allowBackup="false">
 

@@ -72,6 +72,15 @@ public final class Prefs {
         return sb.toString();
     }
 
+    /** تم برنامه: system | light | dark */
+    public static String theme(Context c) {
+        return sp(c).getString("theme", "system");
+    }
+
+    public static void setTheme(Context c, String t) {
+        sp(c).edit().putString("theme", t).apply();
+    }
+
     public static long lastUpdateCheck(Context c) {
         return sp(c).getLong("last_update_check", 0);
     }
