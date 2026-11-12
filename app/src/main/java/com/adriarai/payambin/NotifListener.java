@@ -17,6 +17,29 @@ import org.json.JSONObject;
 
 /** اعلان‌های برنامه‌های دیگر (بله، تلگرام، واتساپ، ایتا، روبیکا ...) را ذخیره می‌کند */
 public class NotifListener extends NotificationListenerService {
+    public static volatile boolean connected = false;
+
+    @Override
+    public void onListenerConnected() {
+        super.onListenerConnected();
+        connected = true;
+        Diag.init(this);
+        Diag.log("دسترسی اعلان وصل شد");
+    }
+
+    @Override
+    public void onListenerDisconnected() {
+        super.onListenerDisconnected();
+        connected = false;
+        Diag.init(this);
+        Diag.log("⚠️ سیستم دسترسی اعلان را قطع کرد — درخواست اتصال دوباره");
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                requestRebind(new ComponentName(this, NotifListener.class));
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     public static boolean isEnabled(Context c) {
         String s = Settings.Secure.getString(c.getContentResolver(), "enabled_notification_listeners");
@@ -90,6 +113,7 @@ public class NotifListener extends NotificationListenerService {
                     "text", text == null ? "" : text.toString(),
                     "time", sbn.getPostTime());
             NotifStore.get(this).add(o);
+            Diag.log("اعلان گرفته شد: " + o.optString("app"));
         } catch (Exception ignored) {
         }
     }

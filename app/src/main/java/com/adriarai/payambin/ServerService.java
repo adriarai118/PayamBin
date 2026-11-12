@@ -6,7 +6,12 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
+import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.content.IntentFilter;
 import android.provider.CallLog;
 import android.telephony.TelephonyManager;
@@ -44,6 +49,7 @@ public class ServerService extends Service {
         public void run() {
             // اگر IP عوض شد، اعلان به‌روز شود
             if (running) {
+                if (++beat % 4 == 0) Diag.log("♥ زنده — " + snapshot()); // هر ۲ دقیقه
                 updateNotification();
                 Updater.maybeCheck(ServerService.this);
                 handler.postDelayed(this, 30_000);
@@ -69,9 +75,72 @@ public class ServerService extends Service {
         return "http://" + ips.get(0) + ":" + Prefs.port(c);
     }
 
+    private BroadcastReceiver sysReceiver;
+    private ConnectivityManager.NetworkCallback netCb;
+    private int beat = 0;
+
+    private String snapshot() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            sb.append("صفحه=").append(pm.isInteractive() ? "روشن" : "خاموش");
+            sb.append(" چرت=").append(pm.isDeviceIdleMode() ? "بله" : "نه");
+            sb.append(" صرفه‌جویی=").append(pm.isPowerSaveMode() ? "بله" : "نه");
+            sb.append(" معاف‌از‌باتری=").append(pm.isIgnoringBatteryOptimizations(getPackageName()) ? "بله" : "نه");
+        } catch (Exception ignored) {
+        }
+        sb.append(" IP=").append(Net.localIps());
+        sb.append(" قفل‌وای‌فای=").append(wifiLock != null && wifiLock.isHeld() ? "دارد" : "ندارد");
+        sb.append(" اعلان=").append(NotifListener.connected ? "وصل" : "قطع");
+        return sb.toString();
+    }
+
+    private void registerDiag() {
+        sysReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent i) {
+                String a = i.getAction();
+                String what = Intent.ACTION_SCREEN_OFF.equals(a) ? "صفحه خاموش شد"
+                        : Intent.ACTION_SCREEN_ON.equals(a) ? "صفحه روشن شد"
+                        : PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED.equals(a) ? "تغییر حالت چرت (Doze)"
+                        : PowerManager.ACTION_POWER_SAVE_MODE_CHANGED.equals(a) ? "تغییر صرفه‌جویی باتری" : a;
+                Diag.log(what + " — " + snapshot());
+            }
+        };
+        IntentFilter f = new IntentFilter();
+        f.addAction(Intent.ACTION_SCREEN_OFF);
+        f.addAction(Intent.ACTION_SCREEN_ON);
+        f.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+        f.addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
+        try {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(sysReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(sysReceiver, f);
+        } catch (Exception ignored) {
+        }
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            netCb = new ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(Network n) {
+                    Diag.log("وای‌فای وصل شد — IP=" + Net.localIps());
+                }
+
+                @Override
+                public void onLost(Network n) {
+                    Diag.log("وای‌فای قطع شد");
+                }
+            };
+            cm.registerNetworkCallback(new NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), netCb);
+        } catch (Exception ignored) {
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        Diag.init(this);
+        Diag.log("— سرویس ساخته شد (pid " + android.os.Process.myPid() + ")");
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "سرور پیام‌بین", NotificationManager.IMPORTANCE_LOW);
             ch.setShowBadge(false);
@@ -106,6 +175,7 @@ public class ServerService extends Service {
                 server.start();
                 running = true;
                 lastError = null;
+                Diag.log("سرور روی پورت " + Prefs.port(this) + " روشن شد — " + snapshot());
             } catch (Exception e) {
                 server = null;
                 running = false;
@@ -118,6 +188,7 @@ public class ServerService extends Service {
             registerSmsObserver();
             registerPhone();
             startMdns();
+            registerDiag();
             handler.postDelayed(refresher, 20_000);
         }
         return START_STICKY;
@@ -235,6 +306,15 @@ public class ServerService extends Service {
 
     @Override
     public void onDestroy() {
+        Diag.log("سرویس متوقف شد");
+        try {
+            if (sysReceiver != null) unregisterReceiver(sysReceiver);
+        } catch (Exception ignored) {
+        }
+        try {
+            if (netCb != null) ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(netCb);
+        } catch (Exception ignored) {
+        }
         running = false;
         handler.removeCallbacksAndMessages(null);
         if (server != null) server.stop();

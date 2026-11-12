@@ -53,6 +53,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setTitle("پیام‌بین");
+        Diag.init(this);
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
@@ -189,6 +190,10 @@ public class MainActivity extends Activity {
         Button checkUpd = button("بررسی آپدیت الان");
         checkUpd.setOnClickListener(v -> Updater.checkAsync(this));
         root.addView(checkUpd, lp(8));
+
+        Button diag = button("گزارش عیب‌یابی");
+        diag.setOnClickListener(v -> showDiag());
+        root.addView(diag, lp(18));
 
         TextView help = text(13, Color.parseColor("#64748B"), false);
         help.setLineSpacing(dp(3), 1f);
@@ -331,6 +336,30 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private void showDiag() {
+        final String log = Diag.read(60_000);
+        TextView tv = new TextView(this);
+        tv.setText(log.isEmpty() ? "هنوز چیزی ثبت نشده" : log);
+        tv.setTextSize(11);
+        tv.setTextIsSelectable(true);
+        tv.setPadding(dp(14), dp(10), dp(14), dp(10));
+        ScrollView sv = new ScrollView(this);
+        sv.addView(tv);
+        sv.post(() -> sv.fullScroll(View.FOCUS_DOWN));
+        new AlertDialog.Builder(this)
+                .setTitle("گزارش عیب‌یابی")
+                .setView(sv)
+                .setPositiveButton("ارسال / اشتراک", (d, w) -> {
+                    Intent s = new Intent(Intent.ACTION_SEND);
+                    s.setType("text/plain");
+                    s.putExtra(Intent.EXTRA_TEXT, log);
+                    startActivity(Intent.createChooser(s, "ارسال گزارش"));
+                })
+                .setNeutralButton("پاک کردن", (d, w) -> Diag.clear())
+                .setNegativeButton("بستن", null)
+                .show();
     }
 
     private void openXiaomiAutostart() {

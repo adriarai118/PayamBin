@@ -153,10 +153,16 @@ public class WebServer {
         }
     }
 
+    private static volatile long lastReq = 0;
+
     private void handle(Socket sock) {
         try {
             sock.setSoTimeout(20000);
             if (!Net.isLocal(sock.getInetAddress())) return;
+            long now = System.currentTimeMillis();
+            if (lastReq != 0 && now - lastReq > 45_000)
+                Diag.log("درخواست از " + sock.getInetAddress().getHostAddress() + " بعد از " + ((now - lastReq) / 1000) + " ثانیه سکوت");
+            lastReq = now;
             InputStream in = new java.io.BufferedInputStream(sock.getInputStream());
             String line = readLine(in);
             if (line == null || line.isEmpty()) return;
@@ -298,6 +304,13 @@ public class WebServer {
                         "otp", cachedOtp(),
                         "addr", J.obj("host", Mdns.HOST, "mdns", Mdns.status,
                                 "ips", new JSONArray(Net.localIps()), "port", Prefs.port(ctx))));
+
+            case "/api/diag": {
+                Res d = new Res();
+                d.type = "text/plain; charset=utf-8";
+                d.body = Diag.read(120_000).getBytes(StandardCharsets.UTF_8);
+                return d;
+            }
 
             case "/api/calls":
                 return Res.json(PhoneState.calls(ctx, r.qi("limit", 200)));
