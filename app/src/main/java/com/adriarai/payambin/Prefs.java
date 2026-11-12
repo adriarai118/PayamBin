@@ -81,6 +81,15 @@ public final class Prefs {
         sp(c).edit().putBoolean("proxy_on", v).apply();
     }
 
+    /** فقط دستگاه‌هایی که وارد صفحه‌ی پیام‌بین شده‌اند (پیش‌فرض: خاموش = همه‌ی شبکه‌ی داخلی) */
+    public static boolean proxyRestrict(Context c) {
+        return sp(c).getBoolean("proxy_restrict", false);
+    }
+
+    public static void setProxyRestrict(Context c, boolean v) {
+        sp(c).edit().putBoolean("proxy_restrict", v).apply();
+    }
+
     public static int proxyPort(Context c) {
         return sp(c).getInt("proxy_port", 8888);
     }

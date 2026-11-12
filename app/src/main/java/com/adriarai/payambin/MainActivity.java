@@ -594,9 +594,11 @@ public class MainActivity extends Activity {
 
         LinearLayout kp = card();
         heading(kp, "🌐 اشتراک اینترنت گوشی با کامپیوتر");
-        para(kp, "کامپیوترِ شبکه‌ی داخلی از اینترنت گوشی (داده همراه، یا فیلترشکن اگر روشن باشد) استفاده می‌کند. فقط دستگاهی که با رمز وارد صفحه‌ی پیام‌بین شده اجازه دارد.");
+        para(kp, "کامپیوترِ شبکه‌ی داخلی با تنظیم پروکسی از اینترنت گوشی (داده همراه، یا فیلترشکن اگر روشن باشد) استفاده می‌کند.");
         Switch px = switchRow(kp, "روشن", Prefs.proxyOn(this));
         px.setOnCheckedChangeListener((b, v) -> ServerService.setProxy(this, v));
+        Switch pr = switchRow(kp, "فقط دستگاه‌هایی که با رمز وارد پیام‌بین شده‌اند", Prefs.proxyRestrict(this));
+        pr.setOnCheckedChangeListener((b, v) -> Prefs.setProxyRestrict(this, v));
         final TextView pxInfo = text(13, TEXT, false);
         pxInfo.setTextIsSelectable(true);
         pxInfo.setPadding(0, dp(6), 0, 0);
@@ -635,7 +637,7 @@ public class MainActivity extends Activity {
                 pxInfo.setText("وضعیت: " + ProxyServer.status + "\nمسیر اینترنت: " + ProxyServer.route
                         + "\nمصرف: ↑ " + mb(ProxyServer.bytesUp.get()) + "  ↓ " + mb(ProxyServer.bytesDown.get())
                         + "  · اتصال فعال: " + ProxyServer.active.get()
-                        + "\nدستگاه‌های مجاز: " + ProxyServer.allowedList(this)
+                        + (Prefs.proxyRestrict(this) ? "\nدستگاه‌های مجاز: " + ProxyServer.allowedList(this) : "\nدسترسی: همه‌ی دستگاه‌های شبکه‌ی داخلی")
                         + "\n\nدر ویندوز ← Settings ← Network ← Proxy:\n• Use setup script: http://" + ip + ":" + Prefs.port(this) + "/proxy.pac"
                         + "\nیا Manual proxy: " + ip + " پورت " + Prefs.proxyPort(this) + " (تیک «local addresses» را بزنید)");
             } else {

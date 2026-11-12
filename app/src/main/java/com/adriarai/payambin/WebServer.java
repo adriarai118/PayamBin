@@ -452,6 +452,7 @@ public class WebServer {
                 if (r.method.equals("POST")) {
                     JSONObject b = r.json();
                     if (b.has("on")) ServerService.setProxy(ctx, b.optBoolean("on"));
+                    if (b.has("restrict")) Prefs.setProxyRestrict(ctx, b.optBoolean("restrict"));
                     if (b.optBoolean("clearClients")) {
                         ProxyServer.clearAllowed(ctx);
                         ProxyServer.allow(ctx, r.ip);
@@ -558,6 +559,7 @@ public class WebServer {
                 "ip", ips.isEmpty() ? null : ips.get(0), "port", Prefs.proxyPort(ctx),
                 "up", ProxyServer.bytesUp.get(), "down", ProxyServer.bytesDown.get(),
                 "active", ProxyServer.active.get(),
+                "restrict", Prefs.proxyRestrict(ctx),
                 "clients", new JSONArray(ProxyServer.allowedList(ctx)));
     }
 

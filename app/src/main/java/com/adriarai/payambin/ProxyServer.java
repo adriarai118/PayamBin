@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * پروکسی HTTP/HTTPS: اینترنت گوشی (داده همراه یا فیلترشکن) را به کامپیوترِ شبکه‌ی داخلی می‌رساند.
- * فقط دستگاه‌هایی که در صفحه‌ی پیام‌بین وارد شده‌اند اجازه‌ی استفاده دارند.
+ * پیش‌فرض: هر دستگاه شبکه‌ی داخلی با تنظیم پروکسی؛ اختیاری: فقط دستگاه‌های واردشده.
  */
 public final class ProxyServer {
     private ProxyServer() {}
@@ -140,6 +140,7 @@ public final class ProxyServer {
     }
 
     public static synchronized boolean isAllowed(Context c, String ip) {
+        if (!Prefs.proxyRestrict(c)) return true; // بدون رمز: هر دستگاه شبکه‌ی داخلی
         loadAllowed(c);
         return allowed.contains(ip) || ip.startsWith("127.");
     }

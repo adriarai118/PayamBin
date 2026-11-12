@@ -1146,10 +1146,13 @@ async function renderProxy(info) {
     <div class="keyrow"><code>${esc(pac)}</code><button id="copyPac">کپی</button></div>
     <p class="mute">ویندوز ۷: Internet Options ← Connections ← LAN settings ← «Use automatic configuration script» با همین آدرس.
     یا دستی: پروکسی <code>${esc(info.ip)}</code> پورت <code>${info.port}</code> و تیک «Bypass proxy server for local addresses».</p>
-    <p class="mute">دستگاه‌های مجاز: ${(info.clients || []).map(c => `<code>${esc(c)}</code>`).join(' ') || '—'} <button id="pxClear" style="padding:2px 8px;font-size:12px">پاک کردن</button></p>`;
+    <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="pxRestrict" ${info.restrict ? 'checked' : ''}> فقط دستگاه‌هایی که با رمز وارد پیام‌بین شده‌اند</label>
+    ${info.restrict ? `<p class="mute">دستگاه‌های مجاز: ${(info.clients || []).map(c => `<code>${esc(c)}</code>`).join(' ') || '—'} <button id="pxClear" style="padding:2px 8px;font-size:12px">پاک کردن</button></p>`
+      : '<p class="mute">الان هر دستگاه شبکه‌ی داخلی که این پروکسی را تنظیم کند، بدون رمز از اینترنت گوشی استفاده می‌کند.</p>'}`;
   $('#pxToggle').onclick = async () => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({on: !info.on})})); } catch (e) {} };
   $('#copyPac').onclick = () => copy(pac);
-  $('#pxClear').onclick = async () => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({clearClients: true})})); toast('فقط همین کامپیوتر مجاز ماند'); } catch (e) {} };
+  $('#pxRestrict').onchange = async e => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({restrict: e.target.checked})})); } catch (err) {} };
+  if ($('#pxClear')) $('#pxClear').onclick = async () => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({clearClients: true})})); toast('فقط همین کامپیوتر مجاز ماند'); } catch (e) {} };
 }
 
 $('#copyKey').onclick = () => copy($('#apiKey').textContent);
