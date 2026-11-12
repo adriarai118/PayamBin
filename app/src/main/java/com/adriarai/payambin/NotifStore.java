@@ -82,6 +82,11 @@ public final class NotifStore {
         return a;
     }
 
+    public synchronized JSONObject byId(long id) {
+        for (JSONObject o : items) if (o.optLong("id") == id) return o;
+        return null;
+    }
+
     /** اعلان‌های جدیدتر از زمان داده‌شده (جدیدترین اول) */
     public synchronized JSONArray since(long time, int limit) {
         JSONArray a = new JSONArray();
@@ -151,6 +156,8 @@ public final class NotifStore {
         public static final AtomicLong sms = new AtomicLong(System.currentTimeMillis());
         public static final AtomicLong notif = new AtomicLong(System.currentTimeMillis());
         public static final AtomicLong calls = new AtomicLong(System.currentTimeMillis());
+        public static final AtomicLong files = new AtomicLong(System.currentTimeMillis());
+        public static final AtomicLong clip = new AtomicLong(System.currentTimeMillis());
 
         private Versions() {}
     }

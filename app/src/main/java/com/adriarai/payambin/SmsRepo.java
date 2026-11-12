@@ -255,6 +255,7 @@ public final class SmsRepo {
                 "calls", has(ctx, Manifest.permission.READ_CALL_LOG),
                 "notif", NotifListener.isEnabled(ctx),
                 "battery", ignoringBattery(ctx),
+                "media", MediaRepo.allowed(ctx),
                 "maker", Build.MANUFACTURER);
     }
 }

@@ -131,6 +131,44 @@ main{flex:1;min-height:0;display:flex}
 .call .num{direction:ltr;text-align:right;color:var(--mute);font-size:12px}
 .call button{padding:5px 10px;font-size:12px}
 
+/* پاسخ اعلان */
+.n.out{background:var(--out);border-color:transparent}
+.rbox{display:flex;gap:6px;margin-top:8px}
+.rbox input{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}
+.rbox button{padding:6px 12px}
+.nbtns{display:flex;gap:6px;margin-top:6px}
+.nbtns button{padding:4px 10px;font-size:12px}
+
+/* فایل‌ها */
+.fwrap{flex:1;overflow:auto;padding:16px 4%}
+.fsec{max-width:980px;margin:0 auto 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.fsec h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+.fsec h3 .sp{flex:1}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--mute);cursor:pointer}
+.drop.over{border-color:var(--acc);background:var(--sel)}
+.frow{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.frow:last-child{border-bottom:0}
+.frow .fn{flex:1;min-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.frow .fm{color:var(--mute);font-size:12px}
+.frow button{padding:4px 10px;font-size:12px}
+.prog{height:6px;background:var(--soft);border-radius:4px;overflow:hidden;margin-top:8px}
+.prog i{display:block;height:100%;background:var(--acc);width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.tile{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--soft);cursor:pointer}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .vd{position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;border-radius:6px;padding:1px 6px}
+.tile .dl{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:8px;padding:3px 7px;font-size:12px;opacity:0;transition:.15s}
+.tile:hover .dl{opacity:1}
+
+/* کلیپ‌بورد */
+.clipbox textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);resize:vertical;font:inherit}
+.citem{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;display:flex;gap:8px;align-items:flex-start}
+.citem pre{flex:1;margin:0;white-space:pre-wrap;word-break:break-word;font:inherit;max-height:120px;overflow:auto}
+.citem small{color:var(--mute);display:block;margin-bottom:3px}
+.sheet .citem pre{direction:rtl;text-align:right;background:none;border:0;padding:0;font-family:inherit;font-size:14px}
+a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decoration:none}
+#ringBtn.on{background:#dc2626;border-color:#dc2626;color:#fff}
+
 /* پنجرهٔ تنظیمات */
 .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:8;padding:20px}
 .sheet{background:var(--panel);border-radius:16px;width:min(680px,100%);max-height:90vh;overflow:auto;padding:22px 24px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
@@ -185,11 +223,14 @@ main{flex:1;min-height:0;display:flex}
       <button class="tab on" data-tab="sms">پیامک‌ها <span class="badge hidden" id="smsBadge"></span></button>
       <button class="tab" data-tab="notif">اعلان‌ها <span class="badge hidden" id="notifBadge"></span></button>
       <button class="tab" data-tab="calls">تماس‌ها <span class="badge hidden" id="callsBadge"></span></button>
+      <button class="tab" data-tab="files">فایل‌ها <span class="badge hidden" id="filesBadge"></span></button>
     </div>
     <div class="spacer"></div>
     <div class="otp hidden" id="otpChip" title="آخرین کد تأیید — برای کپی کلیک کنید"><small>کد</small><b id="otpCode"></b><small id="otpFrom"></small></div>
     <div class="bat hidden" id="bat" title="باتری گوشی"><span id="batTxt"></span><div class="cell"><div class="fill" id="batFill"></div></div><span id="batChg"></span></div>
     <div class="conn" id="conn"><i class="dot"></i><span id="device">…</span></div>
+    <button class="hbtn" id="clipBtn" title="کلیپ‌بورد مشترک">📋 <span class="badge hidden" id="clipBadge"></span></button>
+    <button class="hbtn" id="ringBtn" title="پیدا کردن گوشی (زنگ با صدای کامل)">📳</button>
     <button class="hbtn" id="bellBtn" title="اعلان ویندوز">🔕</button>
     <button class="hbtn" id="setBtn" title="تنظیمات">⚙️</button>
     <button id="logout" title="خروج">خروج</button>
@@ -233,8 +274,40 @@ main{flex:1;min-height:0;display:flex}
         <div class="clist" id="callList"></div>
       </section>
     </section>
+    <section class="view hidden" id="filesView">
+      <div class="fwrap">
+        <div class="fsec">
+          <h3>📤 فرستادن فایل به گوشی</h3>
+          <div class="drop" id="drop">فایل را اینجا بکشید و رها کنید، یا کلیک کنید<br><small>در گوشی: پوشه‌ی Download/PayamBin</small></div>
+          <input type="file" id="fileIn" multiple class="hidden">
+          <div id="upProg"></div>
+          <div id="inList"></div>
+        </div>
+        <div class="fsec">
+          <h3>📥 فرستاده‌شده از گوشی <span class="sp"></span></h3>
+          <p class="mute" style="margin:0 0 6px;font-size:13px;color:var(--mute)">در گوشی روی هر فایل یا متن «اشتراک‌گذاری ← ارسال به کامپیوتر» را بزنید.</p>
+          <div id="outList"></div>
+        </div>
+        <div class="fsec">
+          <h3>🖼 عکس‌ها و ویدیوهای اخیر گوشی <span class="sp"></span><button id="mediaRefresh">تازه کردن</button></h3>
+          <div id="media"></div>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
+
+<div class="modal hidden" id="clipModal">
+  <div class="sheet clipbox">
+    <div style="display:flex;align-items:center"><h2 style="flex:1">📋 کلیپ‌بورد مشترک</h2><button id="closeClip">بستن</button></div>
+    <p class="mute">متن را بنویسید یا Paste کنید تا در کلیپ‌بورد گوشی قرار بگیرد.</p>
+    <textarea id="clipText" placeholder="متن…"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="pri" id="clipSend">ارسال به گوشی</button></div>
+    <h3>تاریخچه</h3>
+    <div id="clipList"></div>
+  </div>
+</div>
+<input type="file" id="attachIn" class="hidden">
 
 <div class="modal hidden" id="modal">
   <div class="sheet">
@@ -448,6 +521,10 @@ async function poll() {
     if (s.sms !== st.ver.sms) { st.ver.sms = s.sms; await refreshSms(); }
     if (s.notif !== st.ver.notif) { st.ver.notif = s.notif; await refreshNotifs(); }
     if (s.calls !== st.ver.calls) { st.ver.calls = s.calls; await refreshCalls(); }
+    if (s.files !== st.ver.files) { st.ver.files = s.files; await refreshFiles(); }
+    if (s.clip !== st.ver.clip) { st.ver.clip = s.clip; await refreshClip(); }
+    $('#ringBtn').classList.toggle('on', !!s.ringing);
+    $('#ringBtn').textContent = s.ringing ? '🔕 قطع زنگ' : '📳';
   } catch (e) {
     if (e instanceof AuthError) { st.polling = false; return; }
     $('#conn').classList.add('off'); $('#device').textContent = 'گوشی در دسترس نیست';
@@ -484,6 +561,8 @@ function setTab(t) {
   $('#smsView').classList.toggle('hidden', t !== 'sms');
   $('#notifView').classList.toggle('hidden', t !== 'notif');
   $('#callsView').classList.toggle('hidden', t !== 'calls');
+  $('#filesView').classList.toggle('hidden', t !== 'files');
+  if (t === 'files') { st.seenFiles = st.outCount; renderFilesBadge(); if (!st.mediaLoaded) loadMedia(); }
   document.body.classList.remove('show-conv');
   if (t === 'notif') { st.seenNotif = maxNotifId(); renderNotifBadge(); }
   if (t === 'calls') { st.seenMiss = maxMissId(); renderCallsBadge(); }
@@ -562,6 +641,7 @@ function renderConvHead() {
     <button class="back" id="backBtn">→</button>
     <div class="av" style="background:${colorOf(t.address)}">${initial(t)}</div>
     <div class="meta"><div class="nm">${esc(t.name || t.address)}</div>${t.name ? `<div class="sub">${esc(t.address)}</div>` : ''}</div>
+    ${waLink(t.address) ? `<a href="${waLink(t.address)}" target="_blank" rel="noopener"><button title="گفتگوی این شماره در واتس‌اپ وب">واتس‌اپ وب</button></a>` : ''}
     <button id="copyNum" title="کپی شماره">کپی شماره</button>`;
   $('#backBtn').onclick = () => document.body.classList.remove('show-conv');
   $('#copyNum').onclick = () => copy(t.address);
@@ -715,12 +795,43 @@ function renderNotifs() {
   const app = st.apps.find(a => a.pkg === st.notifApp);
   $('#nHead').innerHTML = `<button class="back" id="nBack">→</button><div class="meta"><div class="nm">${st.notifApp ? esc(app ? app.app : st.notifApp) : 'همهٔ اعلان‌ها'}</div><div class="sub" style="direction:rtl">${faNum(list.length)} مورد · جدیدترین بالا</div></div>`;
   $('#nBack').onclick = () => document.body.classList.remove('show-conv');
-  $('#notifList').innerHTML = list.length ? list.map(n => `
-    <div class="n">
+  const seenConv = new Set();
+  $('#notifList').innerHTML = list.length ? list.map(n => {
+    // کادر پاسخ فقط زیر جدیدترین پیام هر گفتگو
+    const first = n.conv && !seenConv.has(n.conv); if (n.conv) seenConv.add(n.conv);
+    const messenger = MESSENGERS[n.pkg];
+    const tools = first && (n.canReply || messenger) ? `
+      ${n.canReply ? `<div class="rbox"><input placeholder="پاسخ به ${esc(n.title)}…" data-rid="${n.id}"><button class="pri" data-send="${n.id}">ارسال</button></div>` : ''}
+      ${messenger ? `<div class="nbtns"><button data-attach="${esc(n.pkg)}" title="فایل را به گوشی می‌فرستد و در ${esc(messenger)} آماده‌ی ارسال می‌کند">📎 فایل در ${esc(messenger)}</button></div>` : ''}` : '';
+    return `<div class="n ${n.out ? 'out' : ''}">
       <div class="h"><span class="chip" style="background:${colorOf(n.pkg)}">${esc(n.app)}</span><span class="t">${esc(n.title)}</span><span class="tm">${fFull.format(new Date(n.time))}</span></div>
-      <div class="x">${n.sender ? `<span class="s">${esc(n.sender)}: </span>` : ''}${rich(n.text)}</div>
-    </div>`).join('') : `<div class="empty">${st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
+      <div class="x">${n.sender ? `<span class="s">${esc(n.sender)}: </span>` : ''}${rich(n.text)}</div>${tools}
+    </div>`;
+  }).join('') : `<div class="empty">${st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
 }
+const MESSENGERS = {'ir.nasim': 'بله', 'com.whatsapp': 'واتس‌اپ', 'com.whatsapp.w4b': 'واتس‌اپ بیزینس',
+  'org.telegram.messenger': 'تلگرام', 'org.thunderdog.challegram': 'تلگرام', 'ir.eitaa.messenger': 'ایتا', 'ir.resaneh1.iptv': 'روبیکا'};
+async function sendReply(id) {
+  const inp = document.querySelector(`input[data-rid="${id}"]`); if (!inp || !inp.value.trim()) return;
+  const text = inp.value; inp.disabled = true;
+  try { await api('/api/notifs/reply', {method: 'POST', body: JSON.stringify({id: Number(id), text})}); inp.value = ''; toast('پاسخ فرستاده شد'); }
+  catch (e) { if (!(e instanceof AuthError)) toast(e.message); }
+  finally { inp.disabled = false; }
+}
+$('#notifList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.send) sendReply(b.dataset.send);
+  if (b.dataset.attach) { st.attachPkg = b.dataset.attach; $('#attachIn').value = ''; $('#attachIn').click(); }
+});
+$('#notifList').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset.rid) { e.preventDefault(); sendReply(e.target.dataset.rid); }
+});
+$('#attachIn').addEventListener('change', async () => {
+  const f = $('#attachIn').files[0]; if (!f) return;
+  const name = await uploadFile(f);
+  if (name) shareTo(name, st.attachPkg);
+});
+
 $('#clearN').onclick = async () => {
   const app = st.apps.find(a => a.pkg === st.notifApp);
   if (!confirm(st.notifApp ? `اعلان‌های «${app ? app.app : st.notifApp}» پاک شود؟` : 'همهٔ اعلان‌ها پاک شود؟')) return;
@@ -810,7 +921,7 @@ async function refreshCalls() {
         <div class="row1"><span class="nm">${esc(c.name || c.number || 'ناشناس')}</span></div>
         <div class="sn">${label} · ${fFull.format(new Date(c.date))}${c.duration ? ' · ' + fmtDur(c.duration) : ''}${c.name ? ` · <span style="direction:ltr;unicode-bidi:isolate">${esc(c.number)}</span>` : ''}</div>
       </div>
-      ${c.number ? `<button data-copy="${esc(c.number)}">کپی شماره</button><button data-sms="${esc(c.number)}">پیامک</button>` : ''}
+      ${c.number ? `${waLink(c.number) ? `<a href="${waLink(c.number)}" target="_blank" rel="noopener"><button>واتس‌اپ وب</button></a>` : ''}<button data-copy="${esc(c.number)}">کپی شماره</button><button data-sms="${esc(c.number)}">پیامک</button>` : ''}
     </div>`;
   }).join('') : `<div class="empty">${st.perms.calls === false ? 'مجوز «تماس‌ها» روی گوشی داده نشده' : 'تماسی نیست'}</div>`;
 }
@@ -825,12 +936,144 @@ $('#callList').addEventListener('click', e => {
   }
 });
 
+/* ---------- فایل‌ها ---------- */
+const fmtSize = b => b >= 1048576 ? faNum((b / 1048576).toFixed(1)) + ' MB' : faNum(Math.max(1, Math.round(b / 1024))) + ' KB';
+st.outCount = 0; st.seenFiles = null; st.mediaLoaded = false;
+function uploadFile(file) {
+  return new Promise(resolve => {
+    const box = document.createElement('div');
+    box.innerHTML = `<div class="fm" style="margin-top:8px">${esc(file.name)} — ${fmtSize(file.size)}</div><div class="prog"><i></i></div>`;
+    $('#upProg').appendChild(box);
+    const bar = box.querySelector('i');
+    const x = new XMLHttpRequest();
+    x.open('POST', '/api/upload?name=' + encodeURIComponent(file.name));
+    x.setRequestHeader('X-PayamBin', '1');
+    x.upload.onprogress = e => { if (e.lengthComputable) bar.style.width = (e.loaded / e.total * 100) + '%'; };
+    x.onload = () => {
+      box.remove();
+      let j = null; try { j = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status === 200 && j) { toast('به گوشی رسید: ' + j.name); refreshFiles(); resolve(j.name); }
+      else { if (x.status === 401) showLogin(); else toast('ارسال فایل نشد'); resolve(null); }
+    };
+    x.onerror = () => { box.remove(); toast('ارسال فایل نشد (اتصال)'); resolve(null); };
+    x.send(file);
+  });
+}
+async function shareTo(name, pkg) {
+  try {
+    await api('/api/files/share', {method: 'POST', body: JSON.stringify({name, pkg})});
+    toast(`روی گوشی اعلان «📎 فرستادن در ${MESSENGERS[pkg] || '…'}» را لمس کنید و گفتگو را انتخاب کنید`);
+  } catch (e) { if (!(e instanceof AuthError)) toast(e.message); }
+}
+async function uploadMany(files) { for (const f of files) await uploadFile(f); }
+$('#drop').onclick = () => $('#fileIn').click();
+$('#fileIn').onchange = () => { uploadMany([...$('#fileIn').files]); $('#fileIn').value = ''; };
+['dragenter', 'dragover'].forEach(ev => $('#drop').addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => $('#drop').addEventListener(ev, e => { e.preventDefault(); $('#drop').classList.remove('over'); }));
+$('#drop').addEventListener('drop', e => uploadMany([...e.dataTransfer.files]));
+
+const fileUrl = (box, name, dl = 1) => `/api/files/get?box=${box}&name=${encodeURIComponent(name)}&dl=${dl}`;
+function renderFilesBadge() {
+  const n = st.seenFiles === null ? 0 : Math.max(0, st.outCount - st.seenFiles);
+  $('#filesBadge').textContent = faNum(n); $('#filesBadge').classList.toggle('hidden', !n || st.tab === 'files');
+}
+async function refreshFiles() {
+  let r; try { r = await api('/api/files'); } catch (e) { return; }
+  if (st.seenFiles !== null && r.out.length > st.outCount) {
+    const f = r.out[0];
+    alertNew(1, '📥 فایل از گوشی: ' + f.name, fmtSize(f.size), () => setTab('files'), 'files');
+  }
+  st.outCount = r.out.length;
+  if (st.seenFiles === null || st.tab === 'files') st.seenFiles = st.outCount;
+  renderFilesBadge();
+  const share = n => `<button data-share="ir.nasim" data-n="${esc(n)}">بله</button><button data-share="com.whatsapp" data-n="${esc(n)}">واتس‌اپ</button><button data-share="org.telegram.messenger" data-n="${esc(n)}">تلگرام</button><button data-share="" data-n="${esc(n)}">سایر…</button>`;
+  $('#inList').innerHTML = r.in.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
+      <span class="fm">فرستادن در:</span>${share(f.name)}<a href="${fileUrl('in', f.name)}"><button>دانلود</button></a><button data-del="in" data-n="${esc(f.name)}">حذف</button></div>`).join('')
+    || '';
+  $('#outList').innerHTML = r.out.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
+      ${/^(image|video|application\/pdf|text)/.test(f.mime) ? `<a href="${fileUrl('out', f.name, 0)}" target="_blank"><button>نمایش</button></a>` : ''}<a href="${fileUrl('out', f.name)}"><button class="pri">دانلود</button></a><button data-del="out" data-n="${esc(f.name)}">حذف</button></div>`).join('')
+    || '<div class="fm">چیزی فرستاده نشده</div>';
+}
+$('#filesView').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.share !== undefined) shareTo(b.dataset.n, b.dataset.share);
+  if (b.dataset.del) {
+    if (!confirm('«' + b.dataset.n + '» حذف شود؟')) return;
+    try { await api('/api/files/delete', {method: 'POST', body: JSON.stringify({box: b.dataset.del, name: b.dataset.n})}); refreshFiles(); } catch (err) {}
+  }
+});
+async function loadMedia() {
+  st.mediaLoaded = true;
+  $('#media').innerHTML = '<div class="fm">در حال بارگذاری…</div>';
+  let list;
+  try { list = await api('/api/media?limit=60'); }
+  catch (e) { $('#media').innerHTML = `<div class="fm">${e.message.includes('permission') ? 'مجوز «عکس‌ها و ویدیوها» روی گوشی داده نشده (برنامه ← مجوزها)' : 'خطا: ' + esc(e.message)}</div>`; return; }
+  $('#media').innerHTML = list.length ? '<div class="grid">' + list.map(m => `
+    <div class="tile" title="${esc(m.name)} · ${fmtSize(m.size)}" data-open="/api/media/file?kind=${m.kind}&id=${m.id}&dl=0">
+      <img loading="lazy" src="/api/media/thumb?kind=${m.kind}&id=${m.id}" alt="">
+      ${m.kind === 'video' ? '<span class="vd">▶ ویدیو</span>' : ''}
+      <a class="dl" href="/api/media/file?kind=${m.kind}&id=${m.id}" title="دانلود" onclick="event.stopPropagation()">⬇</a>
+    </div>`).join('') + '</div>' : '<div class="fm">عکسی پیدا نشد</div>';
+}
+$('#media').addEventListener('click', e => { const t = e.target.closest('.tile'); if (t) window.open(t.dataset.open, '_blank'); });
+$('#mediaRefresh').onclick = loadMedia;
+
+/* ---------- کلیپ‌بورد ---------- */
+st.clips = []; st.baseClip = null;
+async function refreshClip() {
+  let list; try { list = await api('/api/clip'); } catch (e) { return; }
+  st.clips = list;
+  const maxPhone = list.reduce((m, c) => c.from === 'phone' ? Math.max(m, c.id) : m, 0);
+  if (st.baseClip !== null && maxPhone > st.baseClip) {
+    const c = list.find(x => x.id === maxPhone);
+    alertNew(1, '📋 متن از گوشی', c.text, () => openClip(), 'clip');
+    $('#clipBadge').textContent = '۱'; $('#clipBadge').classList.remove('hidden');
+  }
+  st.baseClip = Math.max(st.baseClip || 0, maxPhone);
+  renderClips();
+}
+function renderClips() {
+  $('#clipList').innerHTML = st.clips.length ? st.clips.map(c => `<div class="citem"><pre><small>${c.from === 'phone' ? '📱 از گوشی' : '💻 از کامپیوتر'} · ${when(c.time)}</small>${esc(c.text)}</pre><button data-clip="${c.id}">کپی</button></div>`).join('')
+    : '<p class="mute">خالی است. در گوشی: «اشتراک‌گذاری ← ارسال به کامپیوتر» یا دکمه‌ی «ارسال کلیپ‌بورد» در برنامه.</p>';
+}
+function openClip() { $('#clipBadge').classList.add('hidden'); renderClips(); $('#clipModal').classList.remove('hidden'); setTimeout(() => $('#clipText').focus(), 50); }
+$('#clipBtn').onclick = openClip;
+$('#closeClip').onclick = () => $('#clipModal').classList.add('hidden');
+$('#clipModal').addEventListener('click', e => {
+  if (e.target.id === 'clipModal') $('#clipModal').classList.add('hidden');
+  const b = e.target.closest('button[data-clip]'); if (b) { const c = st.clips.find(x => String(x.id) === b.dataset.clip); if (c) copy(c.text); }
+});
+$('#clipSend').onclick = async () => {
+  const t = $('#clipText').value; if (!t) return;
+  try { await api('/api/clip', {method: 'POST', body: JSON.stringify({text: t})}); $('#clipText').value = ''; toast('در کلیپ‌بورد گوشی قرار گرفت'); refreshClip(); } catch (e) {}
+};
+
+/* ---------- پیدا کردن گوشی ---------- */
+$('#ringBtn').onclick = async () => {
+  const on = $('#ringBtn').classList.contains('on');
+  try {
+    await api(on ? '/api/ring/stop' : '/api/ring', {method: 'POST', body: '{}'});
+    $('#ringBtn').classList.toggle('on', !on); $('#ringBtn').textContent = on ? '📳' : '🔕 قطع زنگ';
+    if (!on) toast('گوشی تا ۶۰ ثانیه زنگ می‌زند');
+  } catch (e) {}
+};
+
+/* ---------- واتس‌اپ وب برای یک شماره ---------- */
+function waLink(num) {
+  let n = toLatin(num || '').replace(/[^\d+]/g, '');
+  if (n.startsWith('+')) n = n.slice(1);
+  else if (n.startsWith('00')) n = n.slice(2);
+  else if (n.startsWith('0')) n = '98' + n.slice(1);
+  else if (n.length === 10 && n.startsWith('9')) n = '98' + n;
+  return n.length >= 11 ? 'https://web.whatsapp.com/send?phone=' + n : null;
+}
+
 /* ---------- تنظیمات ---------- */
 function openSettings() { renderSettings(); $('#modal').classList.remove('hidden'); }
 $('#setBtn').onclick = openSettings;
 $('#closeModal').onclick = () => $('#modal').classList.add('hidden');
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') $('#modal').classList.add('hidden'); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#modal').classList.add('hidden'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('#modal').classList.add('hidden'); $('#clipModal').classList.add('hidden'); } });
 
 function hostUrl() { return `http://payambin.local:${st.port}`; }
 async function renderSettings() {

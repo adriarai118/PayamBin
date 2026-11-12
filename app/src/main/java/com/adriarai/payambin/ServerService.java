@@ -30,6 +30,7 @@ import java.util.List;
 /** سرویس پیش‌زمینه که وب‌سرور را روشن نگه می‌دارد */
 public class ServerService extends Service {
     public static final String ACTION_STOP = "com.adriarai.payambin.STOP";
+    public static final String ACTION_STOP_RING = "com.adriarai.payambin.STOP_RING";
     private static final String CHANNEL = "server";
     private static final int NOTIF_ID = 1;
 
@@ -151,6 +152,10 @@ public class ServerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP_RING.equals(intent.getAction())) {
+            Ringer.stop(this);
+            if (server != null) return START_STICKY;
+        }
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             Prefs.setWantRunning(this, false);
             stopForegroundCompat();

@@ -3,6 +3,7 @@ package com.adriarai.payambin;
 import android.app.Notification;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -18,6 +19,50 @@ import org.json.JSONObject;
 /** اعلان‌های برنامه‌های دیگر (بله، تلگرام، واتساپ، ایتا، روبیکا ...) را ذخیره می‌کند */
 public class NotifListener extends NotificationListenerService {
     public static volatile boolean connected = false;
+
+    // دکمه‌ی «پاسخ» آخرین اعلان هر گفتگو (فقط در حافظه)
+    private static final java.util.Map<String, Notification.Action> replies = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static boolean canReply(String conv) {
+        return conv != null && replies.containsKey(conv);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Notification.Action findReply(Notification n) {
+        java.util.List<Notification.Action> all = new java.util.ArrayList<>();
+        if (n.actions != null) all.addAll(java.util.Arrays.asList(n.actions));
+        try {
+            all.addAll(new Notification.WearableExtender(n).getActions());
+        } catch (Exception ignored) {
+        }
+        for (Notification.Action a : all) {
+            android.app.RemoteInput[] ri = a.getRemoteInputs();
+            if (ri == null || a.actionIntent == null) continue;
+            for (android.app.RemoteInput r : ri) if (r.getAllowFreeFormInput()) return a;
+        }
+        return null;
+    }
+
+    /** ارسال پاسخ متنی از طریق دکمه‌ی «پاسخ» اعلان */
+    public static String reply(Context ctx, String conv, String text) {
+        Notification.Action a = conv == null ? null : replies.get(conv);
+        if (a == null) return "برای این گفتگو دکمه‌ی پاسخ در دسترس نیست (اعلانش روی گوشی نیست)";
+        try {
+            android.app.RemoteInput[] rs = a.getRemoteInputs();
+            Intent fill = new Intent();
+            Bundle b = new Bundle();
+            for (android.app.RemoteInput r : rs) b.putCharSequence(r.getResultKey(), text);
+            android.app.RemoteInput.addResultsToIntent(rs, fill, b);
+            a.actionIntent.send(ctx, 0, fill);
+            Diag.log("پاسخ فرستاده شد به " + conv);
+            return null;
+        } catch (android.app.PendingIntent.CanceledException e) {
+            replies.remove(conv);
+            return "اعلان این گفتگو دیگر معتبر نیست؛ وقتی پیام تازه‌ای بیاید دوباره می‌شود پاسخ داد";
+        } catch (Exception e) {
+            return "ارسال نشد: " + e.getMessage();
+        }
+    }
 
     @Override
     public void onListenerConnected() {
@@ -105,13 +150,17 @@ public class NotifListener extends NotificationListenerService {
             if (empty(text) && empty(title)) return;
 
             String head = !empty(conv) ? conv.toString() : (title == null ? "" : title.toString());
+            String convKey = pkg + "|" + head;
+            Notification.Action ra = findReply(n);
+            if (ra != null) replies.put(convKey, ra);
             JSONObject o = J.obj(
                     "pkg", pkg,
                     "app", appLabel(pkg),
                     "title", head,
                     "sender", (!empty(sender) && !sender.toString().equals(head)) ? sender.toString() : "",
                     "text", text == null ? "" : text.toString(),
-                    "time", sbn.getPostTime());
+                    "time", sbn.getPostTime(),
+                    "conv", convKey);
             NotifStore.get(this).add(o);
             Diag.log("اعلان گرفته شد: " + o.optString("app"));
         } catch (Exception ignored) {

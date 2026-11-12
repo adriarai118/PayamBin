@@ -119,7 +119,24 @@ public class WebServer {
         int status = 200;
         String type = "application/json; charset=utf-8";
         byte[] body = new byte[0];
+        InputStream stream;     // برای فایل‌های بزرگ
+        long length = -1;
         final List<String> headers = new ArrayList<>();
+
+        static Res file(InputStream in, long len, String mime, String name, boolean download) {
+            Res r = new Res();
+            r.stream = in;
+            r.length = len;
+            r.type = mime == null ? "application/octet-stream" : mime;
+            String enc;
+            try {
+                enc = java.net.URLEncoder.encode(name == null ? "file" : name, "UTF-8").replace("+", "%20");
+            } catch (Exception e) {
+                enc = "file";
+            }
+            r.headers.add("Content-Disposition: " + (download ? "attachment" : "inline") + "; filename=\"file\"; filename*=UTF-8''" + enc);
+            return r;
+        }
 
         static Res json(Object o) {
             Res r = new Res();
@@ -193,6 +210,16 @@ public class WebServer {
                 len = Integer.parseInt(req.headers.get("content-length"));
             } catch (Exception ignored) {
             }
+            if (req.path.equals("/api/upload") && req.method.equals("POST")) {
+                Res res;
+                try {
+                    res = upload(req, in, len);
+                } catch (Exception e) {
+                    res = Res.err(500, String.valueOf(e.getMessage()));
+                }
+                write(sock.getOutputStream(), res);
+                return;
+            }
             if (len > 0) {
                 if (len > 1024 * 1024) return;
                 byte[] body = new byte[len];
@@ -239,14 +266,19 @@ public class WebServer {
         StringBuilder sb = new StringBuilder();
         sb.append("HTTP/1.1 ").append(r.status).append(' ').append(statusText(r.status)).append("\r\n");
         sb.append("Content-Type: ").append(r.type).append("\r\n");
-        sb.append("Content-Length: ").append(r.body.length).append("\r\n");
+        if (r.stream == null) sb.append("Content-Length: ").append(r.body.length).append("\r\n");
+        else if (r.length >= 0) sb.append("Content-Length: ").append(r.length).append("\r\n");
         sb.append("Cache-Control: no-store\r\n");
         sb.append("X-Content-Type-Options: nosniff\r\n");
         sb.append("Connection: close\r\n");
         for (String h : r.headers) sb.append(h).append("\r\n");
         sb.append("\r\n");
         out.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        out.write(r.body);
+        if (r.stream != null) {
+            try (InputStream in = r.stream) {
+                FileStore.copy(in, out, -1);
+            }
+        } else out.write(r.body);
         out.flush();
     }
 
@@ -312,6 +344,9 @@ public class WebServer {
                         "sms", NotifStore.Versions.sms.get(),
                         "notif", NotifStore.Versions.notif.get(),
                         "calls", NotifStore.Versions.calls.get(),
+                        "files", NotifStore.Versions.files.get(),
+                        "clip", NotifStore.Versions.clip.get(),
+                        "ringing", Ringer.ringing,
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -319,6 +354,90 @@ public class WebServer {
                         "otp", cachedOtp(),
                         "addr", J.obj("host", Mdns.HOST, "mdns", Mdns.status,
                                 "ips", new JSONArray(Net.localIps()), "port", Prefs.port(ctx))));
+
+            case "/api/notifs/reply": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                JSONObject n = NotifStore.get(ctx).byId(b.optLong("id"));
+                String text = b.optString("text", "").trim();
+                if (n == null || text.isEmpty()) return Res.err(400, "bad request");
+                String err = NotifListener.reply(ctx, n.optString("conv"), text);
+                if (err != null) return Res.err(409, err);
+                NotifStore.get(ctx).add(J.obj("pkg", n.optString("pkg"), "app", n.optString("app"),
+                        "title", n.optString("title"), "sender", "شما", "text", text,
+                        "time", System.currentTimeMillis(), "conv", n.optString("conv"), "out", true));
+                return Res.json(J.obj("ok", true));
+            }
+
+            case "/api/media":
+                if (!MediaRepo.allowed(ctx)) return Res.err(403, "no media permission");
+                return Res.json(MediaRepo.recent(ctx, r.qi("limit", 60)));
+
+            case "/api/media/thumb": {
+                byte[] t = MediaRepo.thumb(ctx, r.query.get("kind") == null ? "image" : r.query.get("kind"), r.ql("id", -1));
+                if (t == null) return Res.err(404, "no thumb");
+                Res res = new Res();
+                res.type = "image/jpeg";
+                res.body = t;
+                return res;
+            }
+
+            case "/api/media/file": {
+                String kind = "video".equals(r.query.get("kind")) ? "video" : "image";
+                long id = r.ql("id", -1);
+                JSONObject info = MediaRepo.info(ctx, kind, id);
+                if (info == null) return Res.err(404, "not found");
+                InputStream in = ctx.getContentResolver().openInputStream(MediaRepo.uri(kind, id));
+                return Res.file(in, info.optLong("size", -1), info.optString("mime"), info.optString("name"),
+                        !"0".equals(r.query.get("dl")));
+            }
+
+            case "/api/files":
+                return Res.json(J.obj("in", FileStore.list(ctx, "in"), "out", FileStore.list(ctx, "out")));
+
+            case "/api/files/get": {
+                String box = "out".equals(r.query.get("box")) ? "out" : "in";
+                java.io.File f = FileStore.get(ctx, box, r.query.get("name"));
+                if (f == null) return Res.err(404, "not found");
+                return Res.file(new java.io.FileInputStream(f), f.length(), FileStore.mime(f.getName()), f.getName(),
+                        !"0".equals(r.query.get("dl")));
+            }
+
+            case "/api/files/delete": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                java.io.File f = FileStore.get(ctx, "out".equals(b.optString("box")) ? "out" : "in", b.optString("name"));
+                if (f != null) //noinspection ResultOfMethodCallIgnored
+                    f.delete();
+                NotifStore.Versions.files.incrementAndGet();
+                return Res.json(J.obj("ok", true));
+            }
+
+            case "/api/files/share": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                FileStore.offerShare(ctx, b.optString("name"), b.optString("pkg", ""), b.optString("caption", ""));
+                return Res.json(J.obj("ok", true));
+            }
+
+            case "/api/clip":
+                if (r.method.equals("POST")) {
+                    String t = r.json().optString("text", "");
+                    if (t.isEmpty()) return Res.err(400, "empty");
+                    Clip.setPhone(ctx, t);
+                    return Res.json(J.obj("ok", true));
+                }
+                return Res.json(Clip.list());
+
+            case "/api/ring":
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                Ringer.start(ctx);
+                return Res.json(J.obj("ok", true));
+
+            case "/api/ring/stop":
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                Ringer.stop(ctx);
+                return Res.json(J.obj("ok", true));
 
             case "/api/handoff": {
                 java.util.List<String> ips = Net.localIps();
@@ -379,10 +498,18 @@ public class WebServer {
                 return Res.json(J.obj("ok", true));
             }
 
-            case "/api/notifs":
+            case "/api/notifs": {
+                JSONArray items = NotifStore.get(ctx).list(r.query.get("pkg"), r.qi("limit", 300));
+                JSONArray outItems = new JSONArray();
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject o = new JSONObject(items.getJSONObject(i).toString());
+                    J.put(o, "canReply", NotifListener.canReply(o.optString("conv")));
+                    outItems.put(o);
+                }
                 return Res.json(J.obj(
-                        "items", NotifStore.get(ctx).list(r.query.get("pkg"), r.qi("limit", 300)),
+                        "items", outItems,
                         "apps", NotifStore.get(ctx).apps()));
+            }
 
             case "/api/notifs/clear":
                 if (!r.method.equals("POST")) return Res.err(400, "POST required");
@@ -392,6 +519,16 @@ public class WebServer {
             default:
                 return Res.err(404, "not found");
         }
+    }
+
+    /** POST /api/upload?name=...  (بدنه = خود فایل) */
+    private Res upload(Req r, InputStream in, int len) throws Exception {
+        if (!Prefs.validToken(ctx, r.cookie("pb"))) return Res.err(401, "login required");
+        // هدر سفارشی: جلوی ارسال از سایت‌های دیگر را می‌گیرد
+        if (!"1".equals(r.headers.get("x-payambin"))) return Res.err(400, "bad request");
+        if (len <= 0) return Res.err(400, "empty");
+        java.io.File f = FileStore.receive(ctx, r.query.get("name"), in, len);
+        return Res.json(J.obj("ok", true, "name", f.getName()));
     }
 
     private String otpCacheKey = "";

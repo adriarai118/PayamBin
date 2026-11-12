@@ -445,6 +445,25 @@ public class MainActivity extends Activity {
             handler.postDelayed(() -> { if (pageRefresh != null) pageRefresh.run(); }, 400);
         });
 
+        LinearLayout kc = card();
+        heading(kc, "کلیپ‌بورد");
+        para(kc, "متنی که در گوشی کپی کرده‌اید را برای کامپیوتر بفرستید. (برای متن یا فایل از هر برنامه‌ای هم می‌توانید «اشتراک‌گذاری ← ارسال به کامپیوتر» را بزنید.)");
+        button(kc, "📋 ارسال کلیپ‌بورد به کامپیوتر", false, v -> {
+            try {
+                ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                ClipData cd = cm.getPrimaryClip();
+                CharSequence t = cd != null && cd.getItemCount() > 0 ? cd.getItemAt(0).coerceToText(this) : null;
+                if (t == null || t.length() == 0) {
+                    Toast.makeText(this, "کلیپ‌بورد خالی است", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Clip.add(t.toString(), "phone");
+                Toast.makeText(this, "برای کامپیوتر فرستاده شد", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "خواندن کلیپ‌بورد ممکن نشد", Toast.LENGTH_SHORT).show();
+            }
+        });
+
         LinearLayout k2 = card();
         heading(k2, "وضعیت");
         final TextView summary = text(14, TEXT, false);
@@ -493,6 +512,7 @@ public class MainActivity extends Activity {
         final TextView[] send = statusRow(k, "ارسال پیامک از کامپیوتر", "اجازه", v -> askPerms());
         final TextView[] cont = statusRow(k, "نمایش نام مخاطبین", "اجازه", v -> askPerms());
         final TextView[] calls = statusRow(k, "نمایش تماس‌ها", "اجازه", v -> askPerms());
+        final TextView[] media = statusRow(k, "عکس‌ها و ویدیوها (برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] notif = statusRow(k, "اعلان پیام‌رسان‌ها (بله، تلگرام، …)", "فعال‌سازی", v -> {
             try {
                 startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -529,6 +549,7 @@ public class MainActivity extends Activity {
             setMark(send, SmsRepo.has(this, Manifest.permission.SEND_SMS));
             setMark(cont, SmsRepo.has(this, Manifest.permission.READ_CONTACTS));
             setMark(calls, SmsRepo.has(this, Manifest.permission.READ_CALL_LOG));
+            setMark(media, MediaRepo.allowed(this));
             setMark(notif, NotifListener.isEnabled(this));
             setMark(bat, SmsRepo.ignoringBattery(this));
             setMark(inst, Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls());
@@ -700,7 +721,13 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.READ_CONTACTS);
         p.add(Manifest.permission.READ_PHONE_STATE);
         p.add(Manifest.permission.READ_CALL_LOG);
-        if (Build.VERSION.SDK_INT >= 33) p.add(Manifest.permission.POST_NOTIFICATIONS);
+        if (Build.VERSION.SDK_INT >= 33) {
+            p.add(Manifest.permission.POST_NOTIFICATIONS);
+            p.add(Manifest.permission.READ_MEDIA_IMAGES);
+            p.add(Manifest.permission.READ_MEDIA_VIDEO);
+        } else {
+            p.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+        }
         requestPermissions(p.toArray(new String[0]), 1);
     }
 
