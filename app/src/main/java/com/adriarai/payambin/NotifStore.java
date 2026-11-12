@@ -82,6 +82,17 @@ public final class NotifStore {
         return a;
     }
 
+    /** اعلان‌های جدیدتر از زمان داده‌شده (جدیدترین اول) */
+    public synchronized JSONArray since(long time, int limit) {
+        JSONArray a = new JSONArray();
+        for (JSONObject o : items) {
+            if (o.optLong("time") <= time) break;
+            a.put(o);
+            if (a.length() >= limit) break;
+        }
+        return a;
+    }
+
     public synchronized JSONArray apps() {
         Map<String, JSONObject> m = new LinkedHashMap<>();
         for (JSONObject o : items) {
@@ -139,6 +150,7 @@ public final class NotifStore {
     public static final class Versions {
         public static final AtomicLong sms = new AtomicLong(System.currentTimeMillis());
         public static final AtomicLong notif = new AtomicLong(System.currentTimeMillis());
+        public static final AtomicLong calls = new AtomicLong(System.currentTimeMillis());
 
         private Versions() {}
     }

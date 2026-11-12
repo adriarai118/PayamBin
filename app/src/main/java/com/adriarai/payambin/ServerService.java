@@ -7,6 +7,9 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.provider.CallLog;
+import android.telephony.TelephonyManager;
 import android.content.pm.ServiceInfo;
 import android.database.ContentObserver;
 import android.net.Uri;
@@ -31,7 +34,10 @@ public class ServerService extends Service {
     private WebServer server;
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
-    private ContentObserver smsObserver;
+    private ContentObserver smsObserver, callObserver;
+    private WifiManager.MulticastLock mcLock;
+    private Mdns mdns;
+    private boolean phoneReceiverOn = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresher = new Runnable() {
         @Override
@@ -110,6 +116,8 @@ public class ServerService extends Service {
             }
             acquireLocks();
             registerSmsObserver();
+            registerPhone();
+            startMdns();
             handler.postDelayed(refresher, 20_000);
         }
         return START_STICKY;
@@ -153,9 +161,42 @@ public class ServerService extends Service {
         }
     }
 
+    private void startMdns() {
+        try {
+            WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            mcLock = wm.createMulticastLock("PayamBin::mdns");
+            mcLock.setReferenceCounted(false);
+            mcLock.acquire();
+        } catch (Exception ignored) {
+        }
+        mdns = new Mdns();
+        mdns.start();
+    }
+
+    private void registerPhone() {
+        try {
+            IntentFilter f = new IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(PhoneState.RECEIVER, f, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(PhoneState.RECEIVER, f);
+            phoneReceiverOn = true;
+        } catch (Exception ignored) {
+        }
+        try {
+            callObserver = new ContentObserver(handler) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    NotifStore.Versions.calls.incrementAndGet();
+                }
+            };
+            getContentResolver().registerContentObserver(CallLog.Calls.CONTENT_URI, true, callObserver);
+        } catch (Exception ignored) {
+        }
+    }
+
     private Notification buildNotification() {
         String addr = address(this);
-        String text = addr == null ? "به وای‌فای وصل نیستید" : addr + "   رمز: " + Prefs.pin(this);
+        String text = addr == null ? "به وای‌فای وصل نیستید"
+                : "http://" + Mdns.HOST + ":" + Prefs.port(this) + "   رمز: " + Prefs.pin(this);
 
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), piFlags);
@@ -194,6 +235,18 @@ public class ServerService extends Service {
         server = null;
         try {
             if (smsObserver != null) getContentResolver().unregisterContentObserver(smsObserver);
+            if (callObserver != null) getContentResolver().unregisterContentObserver(callObserver);
+        } catch (Exception ignored) {
+        }
+        try {
+            if (phoneReceiverOn) unregisterReceiver(PhoneState.RECEIVER);
+        } catch (Exception ignored) {
+        }
+        phoneReceiverOn = false;
+        if (mdns != null) mdns.stop();
+        mdns = null;
+        try {
+            if (mcLock != null && mcLock.isHeld()) mcLock.release();
         } catch (Exception ignored) {
         }
         try {

@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
 
         TextView hint = text(12, Color.parseColor("#64748B"), false);
         hint.setGravity(Gravity.CENTER);
-        hint.setText("این آدرس را در مرورگر کامپیوتر (همان شبکه) باز کنید — برای کپی لمس کنید");
+        hint.setText("یکی از این آدرس‌ها را در مرورگر کامپیوتر (همان شبکه) باز کنید؛ اگر اولی باز نشد، دومی (IP) را بزنید — برای کپی لمس کنید");
         card.addView(hint);
 
         pin = text(18, Color.parseColor("#0F172A"), true);
@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
         permInfo.setLineSpacing(dp(3), 1f);
         root.addView(permInfo);
 
-        permsBtn = button("دادن مجوز پیامک، مخاطبین و سیم‌کارت");
+        permsBtn = button("دادن مجوز پیامک، تماس‌ها و مخاطبین");
         permsBtn.setOnClickListener(v -> askPerms());
         root.addView(permsBtn, lp(8));
 
@@ -236,7 +236,8 @@ public class MainActivity extends Activity {
         if (run) {
             status.setText("● سرور روشن است");
             status.setTextColor(Color.parseColor("#15803D"));
-            address.setText(addr == null ? "به وای‌فای وصل نیستید" : addr);
+            address.setText(addr == null ? "به وای‌فای وصل نیستید"
+                    : "http://" + Mdns.HOST + ":" + Prefs.port(this) + "\n" + addr);
             pin.setText("رمز ورود: " + Prefs.pin(this));
             toggle.setText("خاموش کردن سرور");
         } else {
@@ -252,13 +253,15 @@ public class MainActivity extends Activity {
         boolean send = SmsRepo.has(this, Manifest.permission.SEND_SMS);
         boolean contacts = SmsRepo.has(this, Manifest.permission.READ_CONTACTS);
         boolean notif = NotifListener.isEnabled(this);
+        boolean callLog = SmsRepo.has(this, Manifest.permission.READ_CALL_LOG);
         boolean battery = ignoringBattery();
         permInfo.setText(mark(sms) + " خواندن پیامک\n"
                 + mark(send) + " ارسال پیامک از کامپیوتر\n"
                 + mark(contacts) + " نمایش نام مخاطبین\n"
+                + mark(callLog) + " نمایش تماس‌ها\n"
                 + mark(notif) + " اعلان پیام‌رسان‌ها\n"
                 + mark(battery) + " معافیت از بهینه‌سازی باتری");
-        permsBtn.setVisibility(sms && send && contacts ? View.GONE : View.VISIBLE);
+        permsBtn.setVisibility(sms && send && contacts && callLog ? View.GONE : View.VISIBLE);
         notifBtn.setText(notif ? "تنظیمات دسترسی اعلان‌ها" : "دسترسی به اعلان‌ها (بله، تلگرام، واتساپ و ...)");
         batteryBtn.setVisibility(battery ? View.GONE : View.VISIBLE);
 
@@ -279,6 +282,7 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.SEND_SMS);
         p.add(Manifest.permission.READ_CONTACTS);
         p.add(Manifest.permission.READ_PHONE_STATE);
+        p.add(Manifest.permission.READ_CALL_LOG);
         if (Build.VERSION.SDK_INT >= 33) p.add(Manifest.permission.POST_NOTIFICATIONS);
         requestPermissions(p.toArray(new String[0]), 1);
     }
@@ -347,6 +351,7 @@ public class MainActivity extends Activity {
     private void copyAddress() {
         CharSequence a = address.getText();
         if (a == null || !a.toString().startsWith("http")) return;
+        a = a.toString().split("\n")[0];
         ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("address", a));
         Toast.makeText(this, "آدرس کپی شد", Toast.LENGTH_SHORT).show();

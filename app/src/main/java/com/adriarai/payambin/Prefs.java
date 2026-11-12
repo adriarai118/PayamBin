@@ -56,6 +56,22 @@ public final class Prefs {
         sp(c).edit().putBoolean("want_running", v).apply();
     }
 
+    /** کلید API برای اسکریپت‌های کامپیوتر (فقط /api/otp) */
+    public static String apiKey(Context c) {
+        String k = sp(c).getString("api_key", null);
+        if (k == null) k = newApiKey(c);
+        return k;
+    }
+
+    public static String newApiKey(Context c) {
+        byte[] b = new byte[12];
+        RND.nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x));
+        sp(c).edit().putString("api_key", sb.toString()).apply();
+        return sb.toString();
+    }
+
     public static long lastUpdateCheck(Context c) {
         return sp(c).getLong("last_update_check", 0);
     }

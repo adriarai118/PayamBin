@@ -133,6 +133,24 @@ public final class SmsRepo {
         return out;
     }
 
+    /** پیامک‌های دریافتی جدیدتر از زمان داده‌شده (جدیدترین اول) */
+    public static JSONArray recentInbox(Context ctx, long since, int limit) {
+        JSONArray out = new JSONArray();
+        if (!has(ctx, Manifest.permission.READ_SMS)) return out;
+        Cursor c = null;
+        try {
+            c = ctx.getContentResolver().query(SMS, null, "type=1 AND date>?",
+                    new String[]{String.valueOf(since)}, "date DESC");
+            if (c == null) return out;
+            Cols k = new Cols(c);
+            while (c.moveToNext() && out.length() < limit) out.put(msg(c, k));
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return out;
+    }
+
     /** جستجو در متن و شماره */
     public static JSONArray search(Context ctx, String q, int limit) {
         JSONArray out = new JSONArray();
@@ -225,6 +243,7 @@ public final class SmsRepo {
                 "sendSms", has(ctx, Manifest.permission.SEND_SMS),
                 "contacts", has(ctx, Manifest.permission.READ_CONTACTS),
                 "phone", has(ctx, Manifest.permission.READ_PHONE_STATE),
+                "calls", has(ctx, Manifest.permission.READ_CALL_LOG),
                 "notif", NotifListener.isEnabled(ctx));
     }
 }

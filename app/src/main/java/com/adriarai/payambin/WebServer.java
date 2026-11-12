@@ -269,6 +269,15 @@ public class WebServer {
 
         if (path.equals("/api/login") && r.method.equals("POST")) return login(r);
 
+        // رمز پویا برای اسکریپت‌ها: با کلید API یا کوکی ورود
+        if (path.equals("/api/otp")) {
+            String key = r.headers.get("x-api-key");
+            if (key == null) key = r.query.get("key");
+            boolean ok = (key != null && key.equals(Prefs.apiKey(ctx))) || Prefs.validToken(ctx, r.cookie("pb"));
+            if (!ok) return Res.err(401, "invalid api key");
+            return otp(r);
+        }
+
         String token = r.cookie("pb");
         if (!Prefs.validToken(ctx, token)) return Res.err(401, "login required");
 
@@ -281,8 +290,24 @@ public class WebServer {
                 return Res.json(J.obj(
                         "sms", NotifStore.Versions.sms.get(),
                         "notif", NotifStore.Versions.notif.get(),
+                        "calls", NotifStore.Versions.calls.get(),
                         "perms", SmsRepo.perms(ctx),
-                        "device", Build.MANUFACTURER + " " + Build.MODEL));
+                        "device", Build.MANUFACTURER + " " + Build.MODEL,
+                        "battery", PhoneState.battery(ctx),
+                        "call", PhoneState.call(ctx),
+                        "otp", cachedOtp(),
+                        "addr", J.obj("host", Mdns.HOST, "mdns", Mdns.status,
+                                "ips", new JSONArray(Net.localIps()), "port", Prefs.port(ctx))));
+
+            case "/api/calls":
+                return Res.json(PhoneState.calls(ctx, r.qi("limit", 200)));
+
+            case "/api/apikey":
+                return Res.json(J.obj("key", Prefs.apiKey(ctx)));
+
+            case "/api/apikey/new":
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                return Res.json(J.obj("key", Prefs.newApiKey(ctx)));
 
             case "/api/threads":
                 if (!SmsRepo.has(ctx, Manifest.permission.READ_SMS)) return Res.err(403, "no READ_SMS permission");
@@ -325,6 +350,32 @@ public class WebServer {
 
             default:
                 return Res.err(404, "not found");
+        }
+    }
+
+    private String otpCacheKey = "";
+    private JSONObject otpCache = null;
+
+    /** آخرین کد ۳ دقیقهٔ اخیر برای نمایش در صفحه (فقط با تغییر داده‌ها دوباره حساب می‌شود) */
+    private synchronized JSONObject cachedOtp() {
+        String k = NotifStore.Versions.sms.get() + ":" + NotifStore.Versions.notif.get() + ":" + (System.currentTimeMillis() / 30000);
+        if (!k.equals(otpCacheKey) || otpCache == null) {
+            otpCache = Otp.latest(ctx, 180_000L, 0);
+            otpCacheKey = k;
+        }
+        return otpCache;
+    }
+
+    /** GET /api/otp?key=..&max_age=180&since=<ms>&wait=<s> */
+    private Res otp(Req r) throws Exception {
+        long maxAge = Math.max(10, Math.min(3600, r.qi("max_age", 180))) * 1000L;
+        long since = r.ql("since", 0);
+        int wait = Math.max(0, Math.min(60, r.qi("wait", 0)));
+        long deadline = System.currentTimeMillis() + wait * 1000L;
+        while (true) {
+            JSONObject o = Otp.latest(ctx, maxAge, since);
+            if (!o.isNull("code") || System.currentTimeMillis() >= deadline) return Res.json(o);
+            Thread.sleep(1000);
         }
     }
 

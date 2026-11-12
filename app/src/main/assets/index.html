@@ -107,6 +107,45 @@ main{flex:1;min-height:0;display:flex}
 .n .s{color:var(--acc);font-weight:600}
 .n.new{border-color:var(--acc2)}
 
+/* سربرگ: باتری، کد، دکمه‌ها */
+.hbtn{padding:6px 10px}
+.bat{display:flex;align-items:center;gap:5px;font-size:13px;color:var(--mute)}
+.bat .cell{width:24px;height:12px;border:1.5px solid currentColor;border-radius:3px;position:relative;padding:1px}
+.bat .cell::after{content:"";position:absolute;left:100%;top:3px;width:2px;height:4px;background:currentColor;border-radius:0 1px 1px 0}
+.bat .fill{height:100%;border-radius:1px;background:#22c55e}
+.bat.low{color:var(--bad)} .bat.low .fill{background:var(--bad)}
+.otp{display:flex;align-items:center;gap:6px;background:var(--accsoft);border:1px dashed var(--acc);border-radius:9px;padding:4px 10px;cursor:copy;font-size:13px}
+.otp b{direction:ltr;letter-spacing:.08em;font-size:15px}
+.otp small{color:var(--mute)}
+.callbar{background:#16a34a;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;font-weight:600}
+.callbar.off{background:#0369a1}
+.callbar .ring{animation:ring 1s infinite}
+@keyframes ring{0%,100%{transform:rotate(0)}25%{transform:rotate(-15deg)}75%{transform:rotate(15deg)}}
+
+/* تماس‌ها */
+.clist{flex:1;overflow:auto;padding:14px 6%}
+.call{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;max-width:760px;width:100%;margin:0 auto 6px}
+.call .ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:17px;flex:none}
+.call .ic.in{background:#dcfce7;color:#15803d} .call .ic.out{background:#dbeafe;color:#1d4ed8} .call .ic.miss{background:#fee2e2;color:#b91c1c}
+.call.miss .nm{color:var(--bad)}
+.call .num{direction:ltr;text-align:right;color:var(--mute);font-size:12px}
+.call button{padding:5px 10px;font-size:12px}
+
+/* پنجرهٔ تنظیمات */
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:8;padding:20px}
+.sheet{background:var(--panel);border-radius:16px;width:min(680px,100%);max-height:90vh;overflow:auto;padding:22px 24px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.sheet h2{margin:0 0 4px;font-size:18px}
+.sheet h3{margin:20px 0 6px;font-size:15px}
+.sheet p,.sheet li{line-height:1.9;color:var(--ink)}
+.sheet .mute{color:var(--mute);font-size:13px}
+.sheet code,.sheet pre{direction:ltr;text-align:left;font-family:Consolas,monospace;font-size:12.5px;background:var(--soft);border-radius:6px}
+.sheet code{padding:1px 6px}
+.sheet pre{padding:10px 12px;overflow:auto;white-space:pre;border:1px solid var(--line);position:relative}
+.keyrow{display:flex;gap:8px;align-items:center}
+.keyrow code{flex:1;padding:8px 10px}
+.okline{color:#15803d;font-weight:600}
+.badline{color:var(--bad);font-weight:600}
+
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:9}
 #toast.on{opacity:.95;transform:translateX(-50%) translateY(0)}
 
@@ -145,11 +184,17 @@ main{flex:1;min-height:0;display:flex}
     <div class="tabs">
       <button class="tab on" data-tab="sms">پیامک‌ها <span class="badge hidden" id="smsBadge"></span></button>
       <button class="tab" data-tab="notif">اعلان‌ها <span class="badge hidden" id="notifBadge"></span></button>
+      <button class="tab" data-tab="calls">تماس‌ها <span class="badge hidden" id="callsBadge"></span></button>
     </div>
     <div class="spacer"></div>
+    <div class="otp hidden" id="otpChip" title="آخرین کد تأیید — برای کپی کلیک کنید"><small>کد</small><b id="otpCode"></b><small id="otpFrom"></small></div>
+    <div class="bat hidden" id="bat" title="باتری گوشی"><span id="batTxt"></span><div class="cell"><div class="fill" id="batFill"></div></div><span id="batChg"></span></div>
     <div class="conn" id="conn"><i class="dot"></i><span id="device">…</span></div>
+    <button class="hbtn" id="bellBtn" title="اعلان ویندوز">🔕</button>
+    <button class="hbtn" id="setBtn" title="تنظیمات">⚙️</button>
     <button id="logout" title="خروج">خروج</button>
   </header>
+  <div class="callbar hidden" id="callBar"></div>
   <div class="banner hidden" id="banner"></div>
   <main>
     <section class="view" id="smsView">
@@ -182,7 +227,31 @@ main{flex:1;min-height:0;display:flex}
         <div class="msgs nlist" id="notifList"></div>
       </section>
     </section>
+    <section class="view hidden" id="callsView">
+      <section class="conv">
+        <div class="conv-head"><div class="meta"><div class="nm">تماس‌های اخیر</div><div class="sub" style="direction:rtl" id="callsSub"></div></div></div>
+        <div class="clist" id="callList"></div>
+      </section>
+    </section>
   </main>
+</div>
+
+<div class="modal hidden" id="modal">
+  <div class="sheet">
+    <div style="display:flex;align-items:center"><h2 style="flex:1">تنظیمات</h2><button id="closeModal">بستن</button></div>
+
+    <h3>🔔 اعلان ویندوز</h3>
+    <div id="notifHelp"></div>
+
+    <h3>🌐 آدرس</h3>
+    <div id="addrHelp"></div>
+
+    <h3>🔑 API رمز پویا (برای اسکریپت‌ها)</h3>
+    <p class="mute">آخرین کد تأییدی که با پیامک یا اعلان (بله، تلگرام و …) رسیده را برمی‌گرداند. اسکریپت پرکردن خودکار شما می‌تواند مستقیم از این آدرس کد را بگیرد.</p>
+    <div class="keyrow"><code id="apiKey">…</code><button id="copyKey">کپی</button><button id="newKey">کلید جدید</button></div>
+    <p class="mute" style="margin-top:10px">پارامترها: <code>max_age</code> = حداکثر عمر کد به ثانیه (پیش‌فرض ۱۸۰) · <code>since</code> = فقط کدهای جدیدتر از این زمان (میلی‌ثانیه) · <code>wait</code> = تا چند ثانیه منتظر کد جدید بماند (حداکثر ۶۰)</p>
+    <div id="apiExamples"></div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -271,10 +340,51 @@ function beep() {
     o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.4);
   } catch (e) {}
 }
-function alertNew(n, label) {
+/* اعلان ویندوز */
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+function notifState() {
+  if (!('Notification' in window)) return 'unsupported';
+  if (!window.isSecureContext) return 'insecure';
+  return Notification.permission; // granted | denied | default
+}
+const notifOn = () => notifState() === 'granted' && lsGet('pb_notif') !== '0';
+function renderBell() {
+  const on = notifOn();
+  $('#bellBtn').textContent = on ? '🔔' : '🔕';
+  $('#bellBtn').title = on ? 'اعلان ویندوز روشن است (کلیک برای خاموش کردن)' : 'اعلان ویندوز خاموش است';
+}
+function winNotify(title, body, tag, onclick) {
+  if (!notifOn()) return false;
+  try {
+    const n = new Notification(title, {body: (body || '').slice(0, 300), tag: tag || undefined, dir: 'rtl', lang: 'fa', renotify: !!tag});
+    n.onclick = () => { window.focus(); if (onclick) onclick(); n.close(); };
+    return true;
+  } catch (e) { return false; }
+}
+$('#bellBtn').onclick = async () => {
+  const s = notifState();
+  if (s === 'granted') { lsSet('pb_notif', notifOn() ? '0' : '1'); renderBell(); toast(notifOn() ? 'اعلان ویندوز روشن شد' : 'اعلان ویندوز خاموش شد'); return; }
+  if (s === 'default') { await Notification.requestPermission(); lsSet('pb_notif', '1'); renderBell(); if (notifOn()) winNotify('پیام‌بین', 'اعلان ویندوز فعال شد ✓'); return; }
+  openSettings();
+};
+
+function alertNew(n, label, body, onclick, tag) {
   beep();
+  const away = document.hidden || !document.hasFocus();
+  if (away) winNotify(label, body, tag, onclick);
   if (document.hidden) { unseen += n; document.title = `(${faNum(unseen)}) ${label} — پیام‌بین`; }
-  else toast(label);
+  else if (!away) toast(label);
+}
+
+/* تشخیص کد (همان منطق برنامهٔ گوشی) */
+function findCode(text) {
+  const t = toLatin(text || '');
+  const nums = [...t.matchAll(/(?<![\d,./:٫٬-])(\d{4,8})(?![\d,/:٫٬]|\.\d)/g)];
+  if (!nums.length) return null;
+  const k = t.search(/(کد|كد|رمز|پویا|پويا|تایید|تأیید|تاييد|code|otp|pass|pin|verification)/i);
+  if (k >= 0) { for (const m of nums) if (m.index >= k) return m[1]; return nums[nums.length - 1][1]; }
+  return nums.length === 1 ? nums[0][1] : null;
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = 'پیام‌بین'; } });
 
@@ -284,7 +394,9 @@ const st = {
   threads: [], cur: null, sims: [], search: null,
   baseSms: null, baseNotif: null, notifApp: '', notifs: [], apps: [], seenNotif: 0,
   perms: {}, polling: false,
+  calls: [], baseMiss: null, seenMiss: 0, ringKey: '', lowBatWarned: false, addr: null, port: 8080,
 };
+st.ver.calls = null;
 
 function showLogin() {
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
@@ -316,8 +428,11 @@ async function poll() {
     const s = await api('/api/state');
     $('#conn').classList.remove('off'); $('#device').textContent = s.device;
     st.perms = s.perms; renderBanner();
+    st.addr = s.addr; if (s.addr) st.port = s.addr.port;
+    renderBattery(s.battery); renderCall(s.call); renderOtp(s.otp);
     if (s.sms !== st.ver.sms) { st.ver.sms = s.sms; await refreshSms(); }
     if (s.notif !== st.ver.notif) { st.ver.notif = s.notif; await refreshNotifs(); }
+    if (s.calls !== st.ver.calls) { st.ver.calls = s.calls; await refreshCalls(); }
   } catch (e) {
     if (e instanceof AuthError) { st.polling = false; return; }
     $('#conn').classList.add('off'); $('#device').textContent = 'گوشی در دسترس نیست';
@@ -341,8 +456,10 @@ function setTab(t) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('#smsView').classList.toggle('hidden', t !== 'sms');
   $('#notifView').classList.toggle('hidden', t !== 'notif');
+  $('#callsView').classList.toggle('hidden', t !== 'calls');
   document.body.classList.remove('show-conv');
   if (t === 'notif') { st.seenNotif = maxNotifId(); renderNotifBadge(); }
+  if (t === 'calls') { st.seenMiss = maxMissId(); renderCallsBadge(); }
   renderBanner();
 }
 
@@ -355,7 +472,10 @@ async function refreshSms() {
   const maxIn = list.reduce((m, t) => t.lastType === 1 ? Math.max(m, t.lastId) : m, 0);
   if (st.baseSms !== null && maxIn > st.baseSms) {
     const t = list.find(x => x.lastId === maxIn);
-    alertNew(1, 'پیامک جدید از ' + (t ? (t.name || t.address) : ''));
+    const who = t ? (t.name || t.address) : '';
+    const code = t ? findCode(t.snippet) : null;
+    alertNew(1, code ? `🔑 کد ${code} — ${who}` : 'پیامک جدید از ' + who, t ? t.snippet : '',
+      () => { setTab('sms'); if (t) openThread(t); }, 'sms');
   }
   st.baseSms = Math.max(st.baseSms || 0, maxIn);
   const unread = list.reduce((s, t) => s + (t.unread || 0), 0);
@@ -533,7 +653,9 @@ async function refreshNotifs() {
   if (st.baseNotif !== null && max > st.baseNotif) {
     const fresh = st.notifs.filter(n => n.id > st.baseNotif);
     const f = fresh[0];
-    alertNew(fresh.length, f ? `${f.app}: ${f.title}` : 'اعلان جدید');
+    const code = f ? findCode(f.title + ' ' + f.text) : null;
+    alertNew(fresh.length, f ? (code ? `🔑 کد ${code} — ${f.app}` : `${f.app}: ${f.title}`) : 'اعلان جدید',
+      f ? (f.sender ? f.sender + ': ' : '') + f.text : '', () => { setTab('notif'); }, 'notif');
   }
   if (st.baseNotif === null) st.seenNotif = max;
   st.baseNotif = Math.max(st.baseNotif || 0, max);
@@ -578,7 +700,172 @@ $('#clearN').onclick = async () => {
   try { await api('/api/notifs/clear', {method: 'POST', body: JSON.stringify({pkg: st.notifApp})}); st.notifApp = ''; await refreshNotifs(); } catch (e) {}
 };
 
+/* ---------- باتری، تماس جاری، کد ---------- */
+function renderBattery(b) {
+  if (!b || b.level < 0) { $('#bat').classList.add('hidden'); return; }
+  $('#bat').classList.remove('hidden');
+  $('#batTxt').textContent = faNum(b.level) + '٪';
+  $('#batFill').style.width = Math.max(4, b.level) + '%';
+  $('#batChg').textContent = b.charging ? '⚡' : '';
+  const low = b.level <= 20 && !b.charging;
+  $('#bat').classList.toggle('low', low);
+  $('#bat').title = 'باتری گوشی: ' + faNum(b.level) + '٪' + (b.charging ? ' (در حال شارژ)' : '');
+  if (b.level <= 15 && !b.charging && !st.lowBatWarned) {
+    st.lowBatWarned = true;
+    alertNew(1, '🪫 باتری گوشی کم است', faNum(b.level) + '٪ — گوشی را به شارژ بزنید', null, 'battery');
+  }
+  if (b.charging || b.level > 25) st.lowBatWarned = false;
+}
+
+function renderCall(c) {
+  const bar = $('#callBar');
+  if (!c || c.state === 'idle') { bar.classList.add('hidden'); st.ringKey = ''; return; }
+  const who = c.name ? `${esc(c.name)} <span style="direction:ltr;opacity:.85">${esc(c.number)}</span>` : (c.number ? `<span style="direction:ltr">${esc(c.number)}</span>` : '');
+  bar.classList.remove('hidden');
+  bar.classList.toggle('off', c.state !== 'ringing');
+  bar.innerHTML = c.state === 'ringing'
+    ? `<span class="ring">📞</span> تماس ورودی ${who ? 'از ' + who : ''}`
+    : `📞 در حال مکالمه ${who ? 'با ' + who : ''}`;
+  if (c.state === 'ringing') {
+    const key = c.since + ':' + c.number;
+    if (key !== st.ringKey && (c.number || st.ringKey === '')) {
+      const first = st.ringKey === '';
+      st.ringKey = key;
+      if (first || c.number) {
+        beep();
+        winNotify('📞 تماس ورودی', c.name ? `${c.name} (${c.number})` : (c.number || 'شماره نامشخص'), 'call');
+      }
+    }
+  }
+}
+
+let lastOtp = '';
+function renderOtp(o) {
+  const chip = $('#otpChip');
+  if (!o || !o.code) { chip.classList.add('hidden'); return; }
+  chip.classList.remove('hidden');
+  $('#otpCode').textContent = o.code;
+  $('#otpFrom').textContent = o.from ? '· ' + o.from : '';
+  chip.dataset.c = o.code;
+  lastOtp = o.code;
+}
+$('#otpChip').onclick = () => copy($('#otpChip').dataset.c);
+
+/* ---------- تماس‌ها ---------- */
+const CT = {1: ['in', '↙', 'ورودی'], 2: ['out', '↗', 'خروجی'], 3: ['miss', '↙', 'بی‌پاسخ'], 4: ['in', '✉', 'پیغام‌گیر'],
+            5: ['miss', '⊘', 'رد شده'], 6: ['miss', '⛔', 'مسدود'], 7: ['in', '↙', 'ورودی']};
+const maxMissId = () => st.calls.reduce((m, c) => c.type === 3 ? Math.max(m, c.id) : m, st.seenMiss);
+function fmtDur(s) { if (!s) return ''; const m = Math.floor(s / 60), x = s % 60; return faNum(m) + ':' + String(x).padStart(2, '0').replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]); }
+function renderCallsBadge() {
+  const n = st.calls.filter(c => c.type === 3 && c.id > st.seenMiss).length;
+  $('#callsBadge').textContent = faNum(n);
+  $('#callsBadge').classList.toggle('hidden', !n || st.tab === 'calls');
+}
+async function refreshCalls() {
+  let list;
+  try { list = await api('/api/calls'); } catch (e) { return; }
+  st.calls = list;
+  const maxMiss = list.reduce((m, c) => c.type === 3 ? Math.max(m, c.id) : m, 0);
+  if (st.baseMiss !== null && maxMiss > st.baseMiss) {
+    const c = list.find(x => x.id === maxMiss);
+    alertNew(1, '📵 تماس بی‌پاسخ از ' + (c ? (c.name || c.number) : ''), c && c.name ? c.number : '', () => setTab('calls'), 'missed');
+  }
+  if (st.baseMiss === null) st.seenMiss = maxMiss;
+  st.baseMiss = Math.max(st.baseMiss || 0, maxMiss);
+  if (st.tab === 'calls') st.seenMiss = maxMiss;
+  renderCallsBadge();
+  $('#callsSub').textContent = faNum(list.length) + ' تماس';
+  $('#callList').innerHTML = list.length ? list.map(c => {
+    const [cls, ic, label] = CT[c.type] || ['in', '•', 'تماس'];
+    return `<div class="call ${cls}">
+      <div class="ic ${cls}">${ic}</div>
+      <div class="meta">
+        <div class="row1"><span class="nm">${esc(c.name || c.number || 'ناشناس')}</span></div>
+        <div class="sn">${label} · ${fFull.format(new Date(c.date))}${c.duration ? ' · ' + fmtDur(c.duration) : ''}${c.name ? ` · <span style="direction:ltr;unicode-bidi:isolate">${esc(c.number)}</span>` : ''}</div>
+      </div>
+      ${c.number ? `<button data-copy="${esc(c.number)}">کپی شماره</button><button data-sms="${esc(c.number)}">پیامک</button>` : ''}
+    </div>`;
+  }).join('') : `<div class="empty">${st.perms.calls === false ? 'مجوز «تماس‌ها» روی گوشی داده نشده' : 'تماسی نیست'}</div>`;
+}
+$('#callList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.copy) copy(b.dataset.copy);
+  if (b.dataset.sms) {
+    const num = b.dataset.sms;
+    const ex = st.threads.find(t => normNum(t.address) === normNum(num));
+    const c = st.calls.find(x => x.number === num);
+    setTab('sms'); openThread(ex || {thread: null, address: num, name: c ? c.name : null});
+  }
+});
+
+/* ---------- تنظیمات ---------- */
+function openSettings() { renderSettings(); $('#modal').classList.remove('hidden'); }
+$('#setBtn').onclick = openSettings;
+$('#closeModal').onclick = () => $('#modal').classList.add('hidden');
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') $('#modal').classList.add('hidden'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#modal').classList.add('hidden'); });
+
+function hostUrl() { return `http://payambin.local:${st.port}`; }
+async function renderSettings() {
+  const ns = notifState(), origins = [hostUrl()];
+  if (!origins.includes(location.origin)) origins.push(location.origin);
+  let h = '';
+  if (ns === 'granted') {
+    h = `<p class="okline">✓ فعال است${notifOn() ? '' : ' (ولی با دکمهٔ 🔕 خاموش شده)'}</p>
+      <p class="mute">وقتی این صفحه پشت پنجره‌های دیگر یا کوچک‌شده باشد، پیامک، اعلان پیام‌رسان، تماس و باتری کم با اعلان ویندوز خبر داده می‌شود. اگر اعلانی نیامد، در ویندوز: Settings ← System ← Notifications ← مرورگر را روشن و «Do not disturb / Focus» را خاموش کنید.</p>
+      <button id="testNotif">ارسال اعلان آزمایشی</button>`;
+  } else if (ns === 'default') {
+    h = `<p>یک بار اجازه بدهید:</p><button class="pri" id="askNotif">فعال‌سازی اعلان ویندوز</button>`;
+  } else if (ns === 'denied') {
+    h = `<p class="badline">مرورگر اجازهٔ اعلان را رد کرده است.</p><p>روی آیکن کنار نوار آدرس (ⓘ یا قفل) کلیک کنید ← Notifications را روی <b>Allow</b> بگذارید و صفحه را تازه کنید.</p>`;
+  } else if (ns === 'insecure') {
+    h = `<p>مرورگرها اعلان را فقط برای سایت‌های «امن» اجازه می‌دهند. یک بار این تنظیم را انجام دهید (فقط روی همین کامپیوتر):</p>
+      <ol>
+        <li>در نوار آدرس بزنید: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> (در Edge: <code>edge://flags/#unsafely-treat-insecure-origin-as-secure</code>)</li>
+        <li>در کادر متن این را بنویسید: <code>${origins.join(',')}</code> <button id="copyOrig">کپی</button></li>
+        <li>گزینه را روی <b>Enabled</b> بگذارید و دکمهٔ <b>Relaunch</b> را بزنید.</li>
+        <li>دوباره همین پنجره را باز کنید و «فعال‌سازی اعلان ویندوز» را بزنید.</li>
+      </ol>`;
+  } else {
+    h = '<p class="badline">این مرورگر اعلان را پشتیبانی نمی‌کند؛ از Chrome یا Edge استفاده کنید.</p>';
+  }
+  $('#notifHelp').innerHTML = h;
+  const tn = $('#testNotif'); if (tn) tn.onclick = () => { if (!winNotify('پیام‌بین', 'این یک اعلان آزمایشی است ✓')) toast('اعلان ارسال نشد'); };
+  const an = $('#askNotif'); if (an) an.onclick = async () => { await Notification.requestPermission(); lsSet('pb_notif', '1'); renderBell(); renderSettings(); };
+  const co = $('#copyOrig'); if (co) co.onclick = () => copy(origins.join(','));
+
+  const a = st.addr || {};
+  const ips = (a.ips || []).map(ip => `<code>http://${ip}:${st.port}</code>`).join(' ');
+  $('#addrHelp').innerHTML = `<p>آدرس ثابت: <a href="${hostUrl()}" style="direction:ltr">${hostUrl()}</a> ${a.mdns === 'فعال' ? '<span class="okline">✓</span>' : `<span class="badline">(${esc(a.mdns || 'نامشخص')})</span>`}</p>
+    <p class="mute">با عوض شدن IP گوشی هم کار می‌کند. اگر باز نشد: ویندوز ۱۰/۱۱ لازم است، شبکهٔ وای‌فای/LAN در ویندوز باید <b>Private</b> باشد، و در این حالت از آدرس IP استفاده کنید: ${ips || '—'}</p>`;
+
+  let key = '…';
+  try { key = (await api('/api/apikey')).key; } catch (e) {}
+  $('#apiKey').textContent = key;
+  const base = hostUrl();
+  const ex = (title, code) => `<p class="mute" style="margin:12px 0 4px">${title}</p><pre>${esc(code)}</pre>`;
+  $('#apiExamples').innerHTML =
+    ex('PowerShell — آخرین کد ۳ دقیقهٔ اخیر:', `(Invoke-RestMethod "${base}/api/otp?key=${key}").code`) +
+    ex('PowerShell — منتظر کد جدید بمان (اول زمان را بگیر، بعد درخواست کد را بزن):',
+`$t = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+# ... اینجا دکمهٔ «ارسال کد» سایت را بزنید ...
+$code = (Invoke-RestMethod "${base}/api/otp?key=${key}&since=$t&wait=60").code`) +
+    ex('Python:',
+`import requests, time
+t = int(time.time() * 1000)
+r = requests.get("${base}/api/otp",
+                 params={"key": "${key}", "since": t, "wait": 60}, timeout=70).json()
+print(r["code"])`) +
+    ex('خروجی نمونه:', `{"code":"583921","source":"sms","from":"Bank Mellat","text":"رمز پویا: 583921 ...","time":1763000000000}`);
+}
+$('#copyKey').onclick = () => copy($('#apiKey').textContent);
+$('#newKey').onclick = async () => {
+  if (!confirm('کلید فعلی باطل شود و کلید جدید ساخته شود؟ (اسکریپت‌ها را باید به‌روز کنید)')) return;
+  try { await api('/api/apikey/new', {method: 'POST', body: '{}'}); renderSettings(); toast('کلید جدید ساخته شد'); } catch (e) {}
+};
+
 /* شروع */
+renderBell();
 (async () => {
   try { await api('/api/state'); start(); } catch (e) { if (!(e instanceof AuthError)) showLogin(); }
 })();
