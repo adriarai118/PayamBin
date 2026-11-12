@@ -51,6 +51,7 @@ public class ServerService extends Service {
             // اگر IP عوض شد، اعلان به‌روز شود
             if (running) {
                 if (++beat % 4 == 0) Diag.log("♥ زنده — " + snapshot()); // هر ۲ دقیقه
+                ProxyServer.enforce();
                 updateNotification();
                 Updater.maybeCheck(ServerService.this);
                 handler.postDelayed(this, 30_000);

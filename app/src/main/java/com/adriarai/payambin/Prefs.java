@@ -90,6 +90,44 @@ public final class Prefs {
         sp(c).edit().putBoolean("proxy_restrict", v).apply();
     }
 
+    /** سقف مصرف روزانه (مگابایت، ۰ = نامحدود) */
+    public static int proxyCapMb(Context c) {
+        return sp(c).getInt("proxy_cap_mb", 0);
+    }
+
+    public static void setProxyCapMb(Context c, int mb) {
+        sp(c).edit().putInt("proxy_cap_mb", Math.max(0, mb)).apply();
+    }
+
+    /** ساعت کاری: فقط در این بازه روشن باشد */
+    public static boolean proxySched(Context c) {
+        return sp(c).getBoolean("proxy_sched", false);
+    }
+
+    public static String proxyStart(Context c) {
+        return sp(c).getString("proxy_start", "07:30");
+    }
+
+    public static String proxyEnd(Context c) {
+        return sp(c).getString("proxy_end", "14:30");
+    }
+
+    public static void setProxySched(Context c, boolean on, String start, String end) {
+        SharedPreferences.Editor e = sp(c).edit().putBoolean("proxy_sched", on);
+        if (start != null && start.matches("\\d{1,2}:\\d{2}")) e.putString("proxy_start", start);
+        if (end != null && end.matches("\\d{1,2}:\\d{2}")) e.putString("proxy_end", end);
+        e.apply();
+    }
+
+    /** مصرف امروز (JSON) */
+    public static String proxyUsage(Context c) {
+        return sp(c).getString("proxy_usage", "");
+    }
+
+    public static void setProxyUsage(Context c, String json) {
+        sp(c).edit().putString("proxy_usage", json).apply();
+    }
+
     public static int proxyPort(Context c) {
         return sp(c).getInt("proxy_port", 8888);
     }

@@ -189,6 +189,7 @@ public class WebServer {
             Req req = new Req();
             req.method = p[0].toUpperCase(Locale.ROOT);
             req.ip = sock.getInetAddress().getHostAddress();
+            if (req.ip.startsWith("::ffff:")) req.ip = req.ip.substring(7);
             String target = p[1];
             int q = target.indexOf('?');
             req.path = q >= 0 ? target.substring(0, q) : target;
@@ -355,7 +356,7 @@ public class WebServer {
                         "files", NotifStore.Versions.files.get(),
                         "clip", NotifStore.Versions.clip.get(),
                         "ringing", Ringer.ringing,
-                        "proxy", proxyInfo(),
+                        "proxy", proxyInfo(r.ip),
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -453,12 +454,15 @@ public class WebServer {
                     JSONObject b = r.json();
                     if (b.has("on")) ServerService.setProxy(ctx, b.optBoolean("on"));
                     if (b.has("restrict")) Prefs.setProxyRestrict(ctx, b.optBoolean("restrict"));
+                    if (b.has("capMb")) Prefs.setProxyCapMb(ctx, b.optInt("capMb"));
+                    if (b.has("sched")) Prefs.setProxySched(ctx, b.optBoolean("sched"), b.optString("start", null), b.optString("end", null));
+                    ProxyServer.enforce();
                     if (b.optBoolean("clearClients")) {
                         ProxyServer.clearAllowed(ctx);
                         ProxyServer.allow(ctx, r.ip);
                     }
                 }
-                return Res.json(proxyInfo());
+                return Res.json(proxyInfo(r.ip));
 
             case "/api/handoff": {
                 java.util.List<String> ips = Net.localIps();
@@ -552,7 +556,7 @@ public class WebServer {
         return Res.json(J.obj("ok", true, "name", f.getName()));
     }
 
-    private JSONObject proxyInfo() {
+    private JSONObject proxyInfo(String you) {
         java.util.List<String> ips = Net.localIps();
         return J.obj("on", ProxyServer.isRunning(), "wanted", Prefs.proxyOn(ctx),
                 "status", ProxyServer.status, "route", ProxyServer.route,
@@ -560,6 +564,11 @@ public class WebServer {
                 "up", ProxyServer.bytesUp.get(), "down", ProxyServer.bytesDown.get(),
                 "active", ProxyServer.active.get(),
                 "restrict", Prefs.proxyRestrict(ctx),
+                "capMb", Prefs.proxyCapMb(ctx),
+                "sched", J.obj("on", Prefs.proxySched(ctx), "start", Prefs.proxyStart(ctx), "end", Prefs.proxyEnd(ctx)),
+                "blocked", ProxyServer.blockReason(),
+                "today", ProxyServer.usage(),
+                "you", you,
                 "clients", new JSONArray(ProxyServer.allowedList(ctx)));
     }
 

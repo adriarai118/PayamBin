@@ -603,6 +603,21 @@ public class MainActivity extends Activity {
         pxInfo.setTextIsSelectable(true);
         pxInfo.setPadding(0, dp(6), 0, 0);
         kp.addView(pxInfo);
+        final TextView capBtn = button(kp, "", false, v -> askCap());
+        Switch sch = switchRow(kp, "فقط در ساعت کاری", Prefs.proxySched(this));
+        sch.setOnCheckedChangeListener((b, v) -> {
+            Prefs.setProxySched(this, v, null, null);
+            ProxyServer.enforce();
+        });
+        LinearLayout times = new LinearLayout(this);
+        times.setOrientation(LinearLayout.HORIZONTAL);
+        kp.addView(times);
+        final TextView startBtn = button(times, "", false, v -> pickTime(true));
+        final TextView endBtn = button(times, "", false, v -> pickTime(false));
+        startBtn.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(0, -2, 1);
+        elp.setMarginStart(dp(8));
+        endBtn.setLayoutParams(elp);
         button(kp, "پورت اشتراک اینترنت", false, v -> askProxyPort());
         button(kp, "پاک کردن دستگاه‌های مجاز", false, v -> {
             ProxyServer.clearAllowed(this);
@@ -633,10 +648,29 @@ public class MainActivity extends Activity {
         pageRefresh = () -> {
             java.util.List<String> ips = Net.localIps();
             String ip = ips.isEmpty() ? "?" : ips.get(0);
+            int cap = Prefs.proxyCapMb(this);
+            capBtn.setText("سقف مصرف روزانه: " + (cap == 0 ? "نامحدود" : cap + " MB") + "  (تغییر)");
+            startBtn.setText("از " + Prefs.proxyStart(this));
+            endBtn.setText("تا " + Prefs.proxyEnd(this));
+            startBtn.setEnabled(Prefs.proxySched(this));
+            endBtn.setEnabled(Prefs.proxySched(this));
+            startBtn.setAlpha(Prefs.proxySched(this) ? 1f : 0.45f);
+            endBtn.setAlpha(Prefs.proxySched(this) ? 1f : 0.45f);
             if (ProxyServer.isRunning()) {
-                pxInfo.setText("وضعیت: " + ProxyServer.status + "\nمسیر اینترنت: " + ProxyServer.route
-                        + "\nمصرف: ↑ " + mb(ProxyServer.bytesUp.get()) + "  ↓ " + mb(ProxyServer.bytesDown.get())
+                org.json.JSONObject u = ProxyServer.usage();
+                long total = u.optLong("up") + u.optLong("down");
+                StringBuilder dev = new StringBuilder();
+                org.json.JSONArray ds = u.optJSONArray("devices");
+                for (int i = 0; ds != null && i < ds.length(); i++) {
+                    org.json.JSONObject d = ds.optJSONObject(i);
+                    dev.append("\n   • ").append(d.optString("ip")).append(": ").append(mb(d.optLong("up") + d.optLong("down")));
+                }
+                String block = ProxyServer.blockReason();
+                pxInfo.setText((block != null ? "⛔ " + block + "\n" : "")
+                        + "وضعیت: " + ProxyServer.status + "\nمسیر اینترنت: " + ProxyServer.route
+                        + "\nمصرف امروز: " + mb(total) + (cap > 0 ? " از " + cap + " MB" : "")
                         + "  · اتصال فعال: " + ProxyServer.active.get()
+                        + (dev.length() > 0 ? "\nمصرف هر دستگاه:" + dev : "")
                         + (Prefs.proxyRestrict(this) ? "\nدستگاه‌های مجاز: " + ProxyServer.allowedList(this) : "\nدسترسی: همه‌ی دستگاه‌های شبکه‌ی داخلی")
                         + "\n\nدر ویندوز ← Settings ← Network ← Proxy:\n• Use setup script: http://" + ip + ":" + Prefs.port(this) + "/proxy.pac"
                         + "\nیا Manual proxy: " + ip + " پورت " + Prefs.proxyPort(this) + " (تیک «local addresses» را بزنید)");
@@ -840,6 +874,50 @@ public class MainActivity extends Activity {
 
     private static String mb(long b) {
         return String.format(Locale.US, "%.1f MB", b / 1048576.0);
+    }
+
+    private void askCap() {
+        final EditText et = new EditText(this);
+        et.setInputType(InputType.TYPE_CLASS_NUMBER);
+        et.setHint("۰ = نامحدود");
+        int cur = Prefs.proxyCapMb(this);
+        if (cur > 0) et.setText(String.valueOf(cur));
+        et.setTextColor(TEXT);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(et, new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+        dialog().setTitle("سقف مصرف روزانه (مگابایت)")
+                .setView(box)
+                .setPositiveButton("ذخیره", (d, w) -> {
+                    String t = Otp.latinDigits(et.getText().toString().trim());
+                    int v = 0;
+                    try {
+                        v = t.isEmpty() ? 0 : Integer.parseInt(t);
+                    } catch (NumberFormatException ignored) {
+                    }
+                    Prefs.setProxyCapMb(this, v);
+                    ProxyServer.enforce();
+                    if (pageRefresh != null) pageRefresh.run();
+                })
+                .setNegativeButton("انصراف", null)
+                .show();
+    }
+
+    private void pickTime(boolean start) {
+        String cur = start ? Prefs.proxyStart(this) : Prefs.proxyEnd(this);
+        int h = 7, m = 30;
+        try {
+            h = Integer.parseInt(cur.split(":")[0]);
+            m = Integer.parseInt(cur.split(":")[1]);
+        } catch (Exception ignored) {
+        }
+        new android.app.TimePickerDialog(this, dark ? android.R.style.Theme_Material_Dialog_Alert
+                : android.R.style.Theme_Material_Light_Dialog_Alert, (tp, hh, mm) -> {
+            String v = String.format(Locale.US, "%02d:%02d", hh, mm);
+            Prefs.setProxySched(this, Prefs.proxySched(this), start ? v : null, start ? null : v);
+            ProxyServer.enforce();
+            if (pageRefresh != null) pageRefresh.run();
+        }, h, m, true).show();
     }
 
     private void askProxyPort() {
