@@ -1,0 +1,82 @@
+package com.adriarai.payambin;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import java.security.SecureRandom;
+import java.util.HashSet;
+import java.util.Set;
+
+/** تنظیمات ساده: رمز ورود، پورت، توکن‌های ورود مرورگرها، شروع خودکار */
+public final class Prefs {
+    private static final String NAME = "payambin";
+    private static final SecureRandom RND = new SecureRandom();
+
+    private Prefs() {}
+
+    private static SharedPreferences sp(Context c) {
+        return c.getApplicationContext().getSharedPreferences(NAME, Context.MODE_PRIVATE);
+    }
+
+    public static String pin(Context c) {
+        String p = sp(c).getString("pin", null);
+        if (p == null) p = newPin(c);
+        return p;
+    }
+
+    public static String newPin(Context c) {
+        String p = String.valueOf(100000 + RND.nextInt(900000));
+        // با تغییر رمز، همهٔ مرورگرهای واردشده خارج می‌شوند
+        sp(c).edit().putString("pin", p).putStringSet("tokens", new HashSet<String>()).apply();
+        return p;
+    }
+
+    public static int port(Context c) {
+        return sp(c).getInt("port", 8080);
+    }
+
+    public static void setPort(Context c, int port) {
+        sp(c).edit().putInt("port", port).apply();
+    }
+
+    public static boolean autoStart(Context c) {
+        return sp(c).getBoolean("autostart", true);
+    }
+
+    public static void setAutoStart(Context c, boolean v) {
+        sp(c).edit().putBoolean("autostart", v).apply();
+    }
+
+    /** آیا سرور باید روشن باشد (کاربر آن را خاموش نکرده) */
+    public static boolean wantRunning(Context c) {
+        return sp(c).getBoolean("want_running", false);
+    }
+
+    public static void setWantRunning(Context c, boolean v) {
+        sp(c).edit().putBoolean("want_running", v).apply();
+    }
+
+    public static synchronized String newToken(Context c) {
+        byte[] b = new byte[24];
+        RND.nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x));
+        String t = sb.toString();
+        Set<String> s = new HashSet<>(sp(c).getStringSet("tokens", new HashSet<String>()));
+        if (s.size() > 50) s.clear();
+        s.add(t);
+        sp(c).edit().putStringSet("tokens", s).apply();
+        return t;
+    }
+
+    public static boolean validToken(Context c, String t) {
+        if (t == null || t.isEmpty()) return false;
+        return sp(c).getStringSet("tokens", new HashSet<String>()).contains(t);
+    }
+
+    public static synchronized void removeToken(Context c, String t) {
+        Set<String> s = new HashSet<>(sp(c).getStringSet("tokens", new HashSet<String>()));
+        s.remove(t);
+        sp(c).edit().putStringSet("tokens", s).apply();
+    }
+}

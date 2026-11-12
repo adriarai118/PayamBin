@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.adriarai.payambin'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.adriarai.payambin'
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    // کلید ثابت تا نسخه‌های بعدی روی نسخهٔ قبلی نصب شوند (بدون حذف برنامه)
+    signingConfigs {
+        fixed {
+            storeFile file('payambin.jks')
+            storePassword 'payambin123'
+            keyAlias 'payambin'
+            keyPassword 'payambin123'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.fixed
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.fixed
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding 'UTF-8'
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}

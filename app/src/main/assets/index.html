@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>پیام‌بین</title>
+<style>
+:root{
+  --bg:#f3f5f7; --panel:#fff; --line:#e3e7ec; --ink:#0f172a; --mute:#64748b; --soft:#f1f5f9;
+  --acc:#0f766e; --acc2:#14b8a6; --accsoft:#ccfbf1; --in:#ffffff; --out:#d7f5ec; --warn:#fff7ed; --warnline:#fed7aa; --bad:#b91c1c;
+  --sel:#e6f6f3; --shadow:0 1px 2px rgba(15,23,42,.06),0 4px 16px rgba(15,23,42,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b1220; --panel:#111a2b; --line:#1f2a3d; --ink:#e5edf7; --mute:#8a9ab3; --soft:#162036;
+    --acc:#2dd4bf; --acc2:#14b8a6; --accsoft:#0f3b38; --in:#16213a; --out:#0f3b38; --warn:#2a1d0e; --warnline:#5b3a14; --bad:#f87171; --sel:#132c33;
+    --shadow:0 1px 2px rgba(0,0,0,.3); }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+button,input,select,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 12px}
+button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.pri:hover{filter:brightness(1.08)}
+button:disabled{opacity:.55;cursor:default}
+
+/* ورود */
+.login{min-height:100%;display:grid;place-items:center;padding:24px}
+.login .card{width:min(360px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:30px 26px;box-shadow:var(--shadow);text-align:center}
+.logo{width:56px;height:56px;border-radius:16px;background:var(--acc);display:grid;place-items:center;margin:0 auto 12px}
+.login h1{font-size:20px;margin:6px 0 4px}
+.login p{color:var(--mute);margin:0 0 18px;line-height:1.8}
+.login input{width:100%;text-align:center;letter-spacing:.5em;font-size:24px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--soft);direction:ltr}
+.login input:focus{outline:2px solid var(--acc2);border-color:transparent}
+.login button{width:100%;margin-top:12px;padding:11px}
+.err{color:var(--bad);min-height:22px;margin-top:8px}
+
+/* سربرگ */
+#app{height:100%;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px}
+.brand .logo{width:30px;height:30px;border-radius:9px;margin:0}
+.tabs{display:flex;gap:4px;background:var(--soft);padding:4px;border-radius:11px;margin-inline-start:10px}
+.tab{border:0;background:transparent;padding:6px 14px;border-radius:8px;display:flex;align-items:center;gap:7px}
+.tab.on{background:var(--panel);box-shadow:var(--shadow);font-weight:700}
+.badge{background:var(--acc);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;min-width:20px;text-align:center}
+.spacer{flex:1}
+.conn{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
+.conn.off .dot{background:#ef4444}
+.banner{background:var(--warn);border-bottom:1px solid var(--warnline);padding:8px 16px;font-size:13px;line-height:1.9}
+
+/* بدنه */
+main{flex:1;min-height:0;display:flex}
+.view{flex:1;display:flex;min-height:0}
+.side{width:340px;max-width:42%;background:var(--panel);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.side-top{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--line);align-items:center}
+.side-top input{flex:1;min-width:0;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--soft)}
+.side-top input:focus{outline:2px solid var(--acc2);border-color:transparent}
+.list{flex:1;overflow:auto}
+.sect{padding:8px 14px;font-size:12px;color:var(--mute);background:var(--soft);position:sticky;top:0}
+.item{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;align-items:center}
+.item:hover{background:var(--soft)}
+.item.sel{background:var(--sel)}
+.av{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.meta{flex:1;min-width:0}
+.row1{display:flex;gap:6px;align-items:center}
+.nm{font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm{color:var(--mute);font-size:12px;flex:none}
+.sn{color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.item.unread .nm,.item.unread .sn{color:var(--ink)}
+.item.unread .sn{font-weight:600}
+
+.conv{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.conv-head{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);min-height:61px}
+.conv-head .nm{font-size:15px}
+.conv-head .sub{color:var(--mute);font-size:12px;direction:ltr;text-align:right}
+.back{display:none}
+.msgs{flex:1;overflow:auto;padding:16px 6%;display:flex;flex-direction:column;gap:6px}
+.empty{margin:auto;color:var(--mute);text-align:center;line-height:2}
+.day{align-self:center;background:var(--soft);color:var(--mute);font-size:12px;border-radius:99px;padding:3px 12px;margin:10px 0 4px}
+.b{max-width:min(560px,78%);padding:8px 12px 6px;border-radius:14px;line-height:1.85;white-space:pre-wrap;word-wrap:break-word;box-shadow:var(--shadow);position:relative}
+.b.in{align-self:flex-start;background:var(--in);border-start-start-radius:4px}
+.b.out{align-self:flex-end;background:var(--out);border-start-end-radius:4px}
+.b .ft{display:flex;gap:8px;justify-content:flex-end;font-size:11px;color:var(--mute);margin-top:2px}
+.b .ft .fail{color:var(--bad);font-weight:700}
+.b a{color:var(--acc)}
+.code{background:var(--accsoft);color:var(--ink);border-radius:6px;padding:0 5px;cursor:copy;font-weight:700;direction:ltr;unicode-bidi:isolate;border-bottom:1px dashed var(--acc)}
+.code:hover{background:var(--acc2);color:#fff}
+
+.compose{display:flex;gap:8px;padding:10px 14px;background:var(--panel);border-top:1px solid var(--line);align-items:flex-end}
+.compose textarea{flex:1;resize:none;max-height:160px;min-height:40px;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--soft);line-height:1.7}
+.compose textarea:focus{outline:2px solid var(--acc2);border-color:transparent}
+.compose select{padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--soft);height:40px}
+.compose button{height:40px;padding:0 18px}
+.cnt{font-size:11px;color:var(--mute);align-self:center;min-width:44px;text-align:center}
+
+/* اعلان‌ها */
+.nlist{padding:14px 6%}
+.n{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow);max-width:760px;width:100%;align-self:center}
+.n .h{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.chip{font-size:11px;border-radius:99px;padding:2px 9px;color:#fff;flex:none}
+.n .t{font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.n .x{white-space:pre-wrap;word-wrap:break-word;line-height:1.85}
+.n .s{color:var(--acc);font-weight:600}
+.n.new{border-color:var(--acc2)}
+
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:10px;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+#toast.on{opacity:.95;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:760px){
+  .side{width:100%;max-width:none}
+  .view .conv{display:none}
+  body.show-conv .view .side{display:none}
+  body.show-conv .view .conv{display:flex}
+  .back{display:inline-block}
+  .msgs{padding:12px}
+  .tabs{margin-inline-start:0}
+  .conn span{display:none}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="lg" viewBox="0 0 24 24"><path fill="#fff" fill-rule="evenodd" d="M3 4h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm3 3v6h3v2l3-2h6V7z"/></symbol>
+</svg>
+
+<div id="login" class="login hidden">
+  <form class="card" id="loginForm">
+    <div class="logo"><svg width="30" height="30"><use href="#lg"/></svg></div>
+    <h1>پیام‌بین</h1>
+    <p>رمز ۶ رقمی که روی صفحهٔ برنامه در گوشی<br>نمایش داده شده را وارد کنید</p>
+    <input id="pin" inputmode="numeric" autocomplete="off" maxlength="6" autofocus>
+    <button class="pri" type="submit">ورود</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="brand"><div class="logo"><svg width="18" height="18"><use href="#lg"/></svg></div>پیام‌بین</div>
+    <div class="tabs">
+      <button class="tab on" data-tab="sms">پیامک‌ها <span class="badge hidden" id="smsBadge"></span></button>
+      <button class="tab" data-tab="notif">اعلان‌ها <span class="badge hidden" id="notifBadge"></span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="conn" id="conn"><i class="dot"></i><span id="device">…</span></div>
+    <button id="logout" title="خروج">خروج</button>
+  </header>
+  <div class="banner hidden" id="banner"></div>
+  <main>
+    <section class="view" id="smsView">
+      <aside class="side">
+        <div class="side-top">
+          <input id="q" placeholder="جستجو… (Enter: جستجو در متن پیام‌ها)">
+          <button id="newBtn" title="پیام جدید">+ جدید</button>
+        </div>
+        <div class="list" id="threadList"></div>
+      </aside>
+      <section class="conv">
+        <div class="conv-head" id="convHead"></div>
+        <div class="msgs" id="msgs"><div class="empty">یک گفتگو را از فهرست انتخاب کنید</div></div>
+        <form class="compose hidden" id="compose">
+          <select id="sim" class="hidden" title="سیم‌کارت"></select>
+          <textarea id="body" rows="1" placeholder="نوشتن پیام…  (Ctrl+Enter برای ارسال)"></textarea>
+          <span class="cnt" id="cnt"></span>
+          <button class="pri" id="sendBtn" type="submit">ارسال</button>
+        </form>
+      </section>
+    </section>
+
+    <section class="view hidden" id="notifView">
+      <aside class="side">
+        <div class="side-top"><b style="flex:1">برنامه‌ها</b><button id="clearN">پاک کردن</button></div>
+        <div class="list" id="appList"></div>
+      </aside>
+      <section class="conv">
+        <div class="conv-head" id="nHead"></div>
+        <div class="msgs nlist" id="notifList"></div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const faNum = n => Number(n).toLocaleString('fa-IR');
+const toLatin = s => String(s).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+const normNum = s => toLatin(s).replace(/[^\d+]/g, '').replace(/^\+98/, '0').replace(/^0098/, '0');
+
+const L = 'fa-IR-u-ca-persian';
+const fTime = new Intl.DateTimeFormat(L, {hour:'2-digit', minute:'2-digit'});
+const fDay  = new Intl.DateTimeFormat(L, {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+const fShort= new Intl.DateTimeFormat(L, {day:'numeric', month:'short'});
+const fFull = new Intl.DateTimeFormat(L, {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
+function when(ts) {
+  const d = new Date(ts), now = new Date();
+  if (sameDay(d, now)) return fTime.format(d);
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (sameDay(d, y)) return 'دیروز';
+  return fShort.format(d);
+}
+function dayLabel(d) {
+  const now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  if (sameDay(d, now)) return 'امروز';
+  if (sameDay(d, y)) return 'دیروز';
+  const p = {}; fDay.formatToParts(d).forEach(x => p[x.type] = x.value);
+  return `${p.weekday} ${p.day} ${p.month} ${p.year}`;
+}
+
+const COLORS = ['#0f766e','#2563eb','#7c3aed','#db2777','#ea580c','#16a34a','#0891b2','#9333ea','#c2410c','#4f46e5'];
+const colorOf = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return COLORS[Math.abs(h) % COLORS.length]; };
+const initial = t => { const n = (t.name || '').trim(); if (n) return esc(n[0]); return /\d/.test(t.address||'') ? '#' : esc((t.address||'?')[0]); };
+
+/* متن با لینک و کد قابل کپی */
+function rich(t) {
+  return String(t ?? '').split(/(https?:\/\/[^\s]+)/g).map((p, i) => i % 2
+    ? `<a href="${esc(p)}" target="_blank" rel="noopener noreferrer">${esc(p)}</a>`
+    : esc(p).replace(/(^|[^0-9۰-۹٠-٩&#])([0-9۰-۹٠-٩]{4,8})(?![0-9۰-۹٠-٩])/g,
+        (m, a, c) => `${a}<span class="code" data-c="${c}" title="برای کپی کلیک کنید">${c}</span>`)
+  ).join('');
+}
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('on'), 1800);
+}
+function copy(s) {
+  const ta = document.createElement('textarea');
+  ta.value = s; ta.style.cssText = 'position:fixed;opacity:0;top:0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  ta.remove();
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(s).catch(() => {});
+  toast('کپی شد: ' + s);
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('.code');
+  if (c) { e.preventDefault(); copy(toLatin(c.dataset.c)); }
+});
+
+/* ارتباط با گوشی */
+class AuthError extends Error {}
+async function api(path, opts = {}) {
+  const r = await fetch(path, Object.assign({credentials: 'same-origin', cache: 'no-store',
+    headers: {'Content-Type': 'application/json'}}, opts));
+  if (r.status === 401 && path !== '/api/login') { showLogin(); throw new AuthError('auth'); }
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+  return j;
+}
+
+/* هشدار پیام جدید */
+let audioCtx = null, unseen = 0;
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.35);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.4);
+  } catch (e) {}
+}
+function alertNew(n, label) {
+  beep();
+  if (document.hidden) { unseen += n; document.title = `(${faNum(unseen)}) ${label} — پیام‌بین`; }
+  else toast(label);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = 'پیام‌بین'; } });
+
+/* ---------- وضعیت ---------- */
+const st = {
+  tab: 'sms', ver: {sms: null, notif: null},
+  threads: [], cur: null, sims: [], search: null,
+  baseSms: null, baseNotif: null, notifApp: '', notifs: [], apps: [], seenNotif: 0,
+  perms: {}, polling: false,
+};
+
+function showLogin() {
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  $('#pin').value = ''; setTimeout(() => $('#pin').focus(), 50);
+}
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('#loginErr').textContent = '';
+  try {
+    await api('/api/login', {method: 'POST', body: JSON.stringify({pin: toLatin($('#pin').value)})});
+    start();
+  } catch (err) {
+    $('#loginErr').textContent = err.message === 'too many attempts' ? 'تلاش زیاد؛ یک دقیقه صبر کنید' : 'رمز اشتباه است';
+    $('#pin').select();
+  }
+});
+$('#logout').onclick = async () => { try { await api('/api/logout', {method: 'POST', body: '{}'}); } catch (e) {} showLogin(); };
+
+async function start() {
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  try { st.sims = await api('/api/sims'); } catch (e) { if (e instanceof AuthError) return; }
+  renderSims();
+  if (!st.polling) { st.polling = true; poll(); }
+}
+
+async function poll() {
+  if ($('#app').classList.contains('hidden')) { st.polling = false; return; }
+  try {
+    const s = await api('/api/state');
+    $('#conn').classList.remove('off'); $('#device').textContent = s.device;
+    st.perms = s.perms; renderBanner();
+    if (s.sms !== st.ver.sms) { st.ver.sms = s.sms; await refreshSms(); }
+    if (s.notif !== st.ver.notif) { st.ver.notif = s.notif; await refreshNotifs(); }
+  } catch (e) {
+    if (e instanceof AuthError) { st.polling = false; return; }
+    $('#conn').classList.add('off'); $('#device').textContent = 'گوشی در دسترس نیست';
+  }
+  setTimeout(poll, 3000);
+}
+
+function renderBanner() {
+  const p = st.perms, msgs = [];
+  if (p.readSms === false) msgs.push('⚠️ مجوز «خواندن پیامک» روی گوشی داده نشده — برنامه را روی گوشی باز کنید و دکمهٔ مجوزها را بزنید.');
+  if (st.tab === 'notif' && p.notif === false) msgs.push('⚠️ «دسترسی به اعلان‌ها» فعال نیست؛ پیام‌های بله، تلگرام، واتساپ و … اینجا نمی‌آیند.');
+  if (st.tab === 'sms' && p.sendSms === false) msgs.push('ارسال پیامک از کامپیوتر غیرفعال است (مجوز ارسال پیامک داده نشده).');
+  $('#banner').innerHTML = msgs.join('<br>');
+  $('#banner').classList.toggle('hidden', !msgs.length);
+}
+
+/* ---------- تب‌ها ---------- */
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+function setTab(t) {
+  st.tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('#smsView').classList.toggle('hidden', t !== 'sms');
+  $('#notifView').classList.toggle('hidden', t !== 'notif');
+  document.body.classList.remove('show-conv');
+  if (t === 'notif') { st.seenNotif = maxNotifId(); renderNotifBadge(); }
+  renderBanner();
+}
+
+/* ---------- پیامک ---------- */
+async function refreshSms() {
+  let list;
+  try { list = await api('/api/threads'); } catch (e) { if (!(e instanceof AuthError)) renderThreadsError(e); return; }
+  st.threads = list;
+  // تشخیص پیام دریافتی جدید
+  const maxIn = list.reduce((m, t) => t.lastType === 1 ? Math.max(m, t.lastId) : m, 0);
+  if (st.baseSms !== null && maxIn > st.baseSms) {
+    const t = list.find(x => x.lastId === maxIn);
+    alertNew(1, 'پیامک جدید از ' + (t ? (t.name || t.address) : ''));
+  }
+  st.baseSms = Math.max(st.baseSms || 0, maxIn);
+  const unread = list.reduce((s, t) => s + (t.unread || 0), 0);
+  $('#smsBadge').textContent = faNum(unread); $('#smsBadge').classList.toggle('hidden', !unread);
+
+  // گفتگوی جدیدی که از کامپیوتر شروع شده بود
+  if (st.cur && st.cur.thread == null) {
+    const t = list.find(x => normNum(x.address) === normNum(st.cur.address));
+    if (t) st.cur = t;
+  }
+  if (!st.search) renderThreads();
+  if (st.cur && st.cur.thread != null) loadMessages(false);
+}
+
+function renderThreadsError(e) {
+  $('#threadList').innerHTML = `<div class="empty" style="padding:30px">${e.message.includes('READ_SMS') ? 'مجوز خواندن پیامک داده نشده' : 'خطا: ' + esc(e.message)}</div>`;
+}
+
+function renderThreads() {
+  if (st.search) return;
+  const q = $('#q').value.trim(), qn = toLatin(q).toLowerCase();
+  const list = q ? st.threads.filter(t => ((t.name || '') + ' ' + t.address + ' ' + t.snippet).toLowerCase().includes(qn) || toLatin(t.address).includes(qn)) : st.threads;
+  if (!list.length) { $('#threadList').innerHTML = `<div class="empty" style="padding:30px">${q ? 'موردی پیدا نشد — Enter بزنید تا در متن همهٔ پیام‌ها جستجو شود' : 'پیامکی نیست'}</div>`; return; }
+  $('#threadList').innerHTML = list.map(t => `
+    <div class="item ${t.unread ? 'unread' : ''} ${st.cur && st.cur.thread === t.thread ? 'sel' : ''}" data-t="${t.thread}">
+      <div class="av" style="background:${colorOf(t.address)}">${initial(t)}</div>
+      <div class="meta">
+        <div class="row1"><span class="nm">${esc(t.name || t.address)}</span><span class="tm">${when(t.date)}</span></div>
+        <div class="row1"><span class="sn" style="flex:1">${t.lastType !== 1 ? 'شما: ' : ''}${esc(t.snippet)}</span>${t.unread ? `<span class="badge">${faNum(t.unread)}</span>` : ''}</div>
+      </div>
+    </div>`).join('');
+}
+$('#threadList').addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  if (it.dataset.t) {
+    const t = st.threads.find(x => String(x.thread) === it.dataset.t) ||
+              (st.search || []).map(m => ({thread: m.thread, address: m.address, name: m.name})).find(x => String(x.thread) === it.dataset.t);
+    if (t) openThread(t);
+  }
+});
+
+function openThread(t) {
+  st.cur = t;
+  document.body.classList.add('show-conv');
+  if (!st.search) renderThreads();
+  else document.querySelectorAll('#threadList .item').forEach(i => i.classList.toggle('sel', i.dataset.t === String(t.thread)));
+  renderConvHead();
+  $('#compose').classList.remove('hidden');
+  $('#msgs').innerHTML = t.thread == null ? '<div class="empty">گفتگوی جدید — پیام خود را بنویسید</div>' : '<div class="empty">در حال بارگذاری…</div>';
+  if (t.thread != null) loadMessages(true);
+  $('#body').focus();
+}
+
+function renderConvHead() {
+  const t = st.cur;
+  $('#convHead').innerHTML = `
+    <button class="back" id="backBtn">→</button>
+    <div class="av" style="background:${colorOf(t.address)}">${initial(t)}</div>
+    <div class="meta"><div class="nm">${esc(t.name || t.address)}</div>${t.name ? `<div class="sub">${esc(t.address)}</div>` : ''}</div>
+    <button id="copyNum" title="کپی شماره">کپی شماره</button>`;
+  $('#backBtn').onclick = () => document.body.classList.remove('show-conv');
+  $('#copyNum').onclick = () => copy(t.address);
+}
+
+let loadingMsgs = false;
+async function loadMessages(jump) {
+  if (loadingMsgs) return; loadingMsgs = true;
+  const t = st.cur, box = $('#msgs');
+  try {
+    const msgs = await api('/api/messages?thread=' + encodeURIComponent(t.thread));
+    if (st.cur !== t) return;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    const simSlot = {}; st.sims.forEach(s => simSlot[s.id] = s.slot);
+    let lastDay = '', html = '';
+    for (const m of msgs) {
+      const d = new Date(m.date), dk = d.toDateString();
+      if (dk !== lastDay) { html += `<div class="day">${dayLabel(d)}</div>`; lastDay = dk; }
+      const out = m.type !== 1;
+      let stat = '';
+      if (m.type === 5) stat = '<span class="fail">ارسال نشد</span>';
+      else if (m.type === 4 || m.type === 6) stat = '<span>در حال ارسال…</span>';
+      const sim = st.sims.length > 1 && simSlot[m.sub] ? `<span>سیم ${faNum(simSlot[m.sub])}</span>` : '';
+      html += `<div class="b ${out ? 'out' : 'in'}">${rich(m.body)}<div class="ft">${stat}${sim}<span>${fTime.format(d)}</span></div></div>`;
+    }
+    box.innerHTML = html || '<div class="empty">پیامی نیست</div>';
+    if (jump || nearBottom) box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    if (!(e instanceof AuthError)) box.innerHTML = `<div class="empty">خطا: ${esc(e.message)}</div>`;
+  } finally { loadingMsgs = false; }
+}
+
+function renderSims() {
+  const s = $('#sim');
+  s.innerHTML = st.sims.map(x => `<option value="${x.id}">سیم ${faNum(x.slot)} – ${esc(x.carrier || x.name)}</option>`).join('');
+  s.classList.toggle('hidden', st.sims.length < 2);
+}
+
+/* شمارش پیامک (۷۰ نویسه فارسی / ۱۶۰ لاتین) */
+function smsCount(text) {
+  if (!text) return '';
+  const uni = /[^\x00-\x7F]/.test(text), n = [...text].length;
+  const one = uni ? 70 : 160, multi = uni ? 67 : 153;
+  const parts = n <= one ? 1 : Math.ceil(n / multi);
+  return `${faNum(n)} / ${faNum(parts)}`;
+}
+const bodyEl = $('#body');
+bodyEl.addEventListener('input', () => {
+  bodyEl.style.height = 'auto'; bodyEl.style.height = Math.min(bodyEl.scrollHeight, 160) + 'px';
+  $('#cnt').textContent = smsCount(bodyEl.value);
+});
+bodyEl.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); $('#compose').requestSubmit(); } });
+
+$('#compose').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = bodyEl.value;
+  if (!text.trim() || !st.cur) return;
+  const btn = $('#sendBtn'); btn.disabled = true;
+  try {
+    const sub = st.sims.length > 1 ? Number($('#sim').value) : -1;
+    await api('/api/send', {method: 'POST', body: JSON.stringify({address: st.cur.address, body: text, sub})});
+    bodyEl.value = ''; bodyEl.dispatchEvent(new Event('input'));
+    toast('ارسال شد');
+    setTimeout(refreshSms, 1200);
+  } catch (err) {
+    if (!(err instanceof AuthError)) toast('ارسال نشد: ' + err.message);
+  } finally { btn.disabled = false; bodyEl.focus(); }
+});
+
+$('#newBtn').onclick = () => {
+  const n = prompt('شمارهٔ گیرنده:');
+  if (!n || !normNum(n)) return;
+  const num = toLatin(n).trim();
+  const ex = st.threads.find(t => normNum(t.address) === normNum(num));
+  openThread(ex || {thread: null, address: num, name: null});
+};
+
+/* جستجو */
+let searchTimer;
+$('#q').addEventListener('input', () => {
+  if (st.search) st.search = null;
+  clearTimeout(searchTimer); searchTimer = setTimeout(renderThreads, 120);
+});
+$('#q').addEventListener('keydown', async e => {
+  if (e.key === 'Escape') { $('#q').value = ''; st.search = null; renderThreads(); }
+  if (e.key !== 'Enter') return;
+  clearTimeout(searchTimer);
+  const q = $('#q').value.trim(); if (!q) return;
+  try {
+    const res = await api('/api/search?q=' + encodeURIComponent(q));
+    st.search = res;
+    $('#threadList').innerHTML = `<div class="sect">${faNum(res.length)} پیام شامل «${esc(q)}» — Esc برای بازگشت</div>` +
+      (res.map(m => `
+      <div class="item" data-t="${m.thread}">
+        <div class="av" style="background:${colorOf(m.address)}">${initial(m)}</div>
+        <div class="meta">
+          <div class="row1"><span class="nm">${esc(m.name || m.address)}</span><span class="tm">${when(m.date)}</span></div>
+          <div class="sn">${m.type !== 1 ? 'شما: ' : ''}${esc(m.body)}</div>
+        </div>
+      </div>`).join('') || '<div class="empty" style="padding:30px">چیزی پیدا نشد</div>');
+  } catch (err) { if (!(err instanceof AuthError)) toast('خطا در جستجو'); }
+});
+
+/* ---------- اعلان‌ها ---------- */
+const maxNotifId = () => st.notifs.reduce((m, n) => Math.max(m, n.id), st.seenNotif);
+function renderNotifBadge() {
+  const n = st.notifs.filter(x => x.id > st.seenNotif).length;
+  $('#notifBadge').textContent = faNum(n);
+  $('#notifBadge').classList.toggle('hidden', !n || st.tab === 'notif');
+}
+async function refreshNotifs() {
+  let r;
+  try { r = await api('/api/notifs'); } catch (e) { return; }
+  st.notifs = r.items; st.apps = r.apps;
+  const max = st.notifs.reduce((m, n) => Math.max(m, n.id), 0);
+  if (st.baseNotif !== null && max > st.baseNotif) {
+    const fresh = st.notifs.filter(n => n.id > st.baseNotif);
+    const f = fresh[0];
+    alertNew(fresh.length, f ? `${f.app}: ${f.title}` : 'اعلان جدید');
+  }
+  if (st.baseNotif === null) st.seenNotif = max;
+  st.baseNotif = Math.max(st.baseNotif || 0, max);
+  if (st.tab === 'notif' && !document.hidden) st.seenNotif = max;
+  renderNotifBadge();
+  renderApps(); renderNotifs();
+}
+function renderApps() {
+  const all = st.notifs.length;
+  $('#appList').innerHTML = `
+    <div class="item ${!st.notifApp ? 'sel' : ''}" data-p="">
+      <div class="av" style="background:var(--acc)">★</div>
+      <div class="meta"><div class="row1"><span class="nm">همه</span><span class="badge">${faNum(all)}</span></div></div>
+    </div>` + st.apps.map(a => `
+    <div class="item ${st.notifApp === a.pkg ? 'sel' : ''}" data-p="${esc(a.pkg)}">
+      <div class="av" style="background:${colorOf(a.pkg)}">${esc((a.app || '?')[0])}</div>
+      <div class="meta">
+        <div class="row1"><span class="nm">${esc(a.app)}</span><span class="tm">${when(a.last)}</span></div>
+        <div class="sn">${faNum(a.count)} اعلان</div>
+      </div>
+    </div>`).join('');
+}
+$('#appList').addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  st.notifApp = it.dataset.p; renderApps(); renderNotifs();
+  document.body.classList.add('show-conv');
+});
+function renderNotifs() {
+  const list = st.notifApp ? st.notifs.filter(n => n.pkg === st.notifApp) : st.notifs;
+  const app = st.apps.find(a => a.pkg === st.notifApp);
+  $('#nHead').innerHTML = `<button class="back" id="nBack">→</button><div class="meta"><div class="nm">${st.notifApp ? esc(app ? app.app : st.notifApp) : 'همهٔ اعلان‌ها'}</div><div class="sub" style="direction:rtl">${faNum(list.length)} مورد · جدیدترین بالا</div></div>`;
+  $('#nBack').onclick = () => document.body.classList.remove('show-conv');
+  $('#notifList').innerHTML = list.length ? list.map(n => `
+    <div class="n">
+      <div class="h"><span class="chip" style="background:${colorOf(n.pkg)}">${esc(n.app)}</span><span class="t">${esc(n.title)}</span><span class="tm">${fFull.format(new Date(n.time))}</span></div>
+      <div class="x">${n.sender ? `<span class="s">${esc(n.sender)}: </span>` : ''}${rich(n.text)}</div>
+    </div>`).join('') : `<div class="empty">${st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
+}
+$('#clearN').onclick = async () => {
+  const app = st.apps.find(a => a.pkg === st.notifApp);
+  if (!confirm(st.notifApp ? `اعلان‌های «${app ? app.app : st.notifApp}» پاک شود؟` : 'همهٔ اعلان‌ها پاک شود؟')) return;
+  try { await api('/api/notifs/clear', {method: 'POST', body: JSON.stringify({pkg: st.notifApp})}); st.notifApp = ''; await refreshNotifs(); } catch (e) {}
+};
+
+/* شروع */
+(async () => {
+  try { await api('/api/state'); start(); } catch (e) { if (!(e instanceof AuthError)) showLogin(); }
+})();
+</script>
+</body>
+</html>
