@@ -423,6 +423,10 @@ $('#loginForm').addEventListener('submit', async e => {
 $('#logout').onclick = async () => { try { await api('/api/logout', {method: 'POST', body: '{}'}); } catch (e) {} showLogin(); };
 
 async function start() {
+  // اگر با payambin.local باز شده، به IP مستقیم برو (ارتباط پایدارتر وقتی صفحهٔ گوشی خاموش است)
+  if (/\.local$/i.test(location.hostname)) {
+    try { const h = await api('/api/handoff'); if (h && h.url) { location.replace(h.url); return; } } catch (e) {}
+  }
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
   try { st.sims = await api('/api/sims'); } catch (e) { if (e instanceof AuthError) return; }
   renderSims();
@@ -450,6 +454,10 @@ async function poll() {
     if (!st.offSince) st.offSince = Date.now();
     else if (!st.offWarned && Date.now() - st.offSince > 30000) {
       st.offWarned = true;
+      if (!/\.local$/i.test(location.hostname)) {
+        $('#banner').innerHTML = `⚠️ ارتباط با گوشی قطع است. اگر IP گوشی عوض شده، آدرس <a href="http://payambin.local:${st.port}/">payambin.local:${st.port}</a> را باز کنید تا به IP جدید منتقل شوید.`;
+        $('#banner').classList.remove('hidden');
+      }
       winNotify('⚠️ ارتباط با گوشی قطع شد', st.perms.battery === false
         ? 'بهینه‌سازی باتری برای پیام‌بین روشن است؛ آن را در گوشی خاموش کنید'
         : 'وای‌فای گوشی یا سرور پیام‌بین را بررسی کنید', 'conn');

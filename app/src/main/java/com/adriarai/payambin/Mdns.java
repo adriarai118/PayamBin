@@ -232,7 +232,7 @@ public class Mdns {
         w16(o, 1);                          // A
         w16(o, legacy ? 0x0001 : 0x8001);   // IN (+ cache-flush)
         w16(o, 0);
-        w16(o, 120);                        // TTL = 120 ثانیه
+        w16(o, 1800);                       // TTL = ۳۰ دقیقه (با عوض شدن IP دوباره اعلام می‌شود)
         w16(o, 4);
         o.write(ip, 0, 4);
         return o.toByteArray();

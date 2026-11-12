@@ -36,6 +36,7 @@ public class WebServer {
     private final Map<String, Integer> failures = new ConcurrentHashMap<>();
     private final Map<String, Long> lockedUntil = new ConcurrentHashMap<>();
     private byte[] indexHtml;
+    private final Map<String, Long> handoffs = new ConcurrentHashMap<>();
 
     public WebServer(Context ctx, int port) {
         this.ctx = ctx.getApplicationContext();
@@ -224,6 +225,7 @@ public class WebServer {
         switch (s) {
             case 200: return "OK";
             case 204: return "No Content";
+            case 302: return "Found";
             case 400: return "Bad Request";
             case 401: return "Unauthorized";
             case 403: return "Forbidden";
@@ -254,6 +256,19 @@ public class WebServer {
         String path = r.path;
 
         if (path.equals("/") || path.equals("/index.html")) {
+            // انتقال از payambin.local به IP مستقیم با حفظ ورود (توکن یک‌بارمصرف)
+            String h = r.query.get("h");
+            if (h != null) {
+                Long exp = handoffs.remove(h);
+                Res res = new Res();
+                res.status = 302;
+                res.type = "text/plain; charset=utf-8";
+                res.headers.add("Location: /");
+                if (exp != null && exp > System.currentTimeMillis()) {
+                    res.headers.add("Set-Cookie: pb=" + Prefs.newToken(ctx) + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000");
+                }
+                return res;
+            }
             Res res = new Res();
             res.type = "text/html; charset=utf-8";
             res.body = index();
@@ -304,6 +319,19 @@ public class WebServer {
                         "otp", cachedOtp(),
                         "addr", J.obj("host", Mdns.HOST, "mdns", Mdns.status,
                                 "ips", new JSONArray(Net.localIps()), "port", Prefs.port(ctx))));
+
+            case "/api/handoff": {
+                java.util.List<String> ips = Net.localIps();
+                if (ips.isEmpty()) return Res.json(J.obj("url", null));
+                byte[] b = new byte[16];
+                new java.security.SecureRandom().nextBytes(b);
+                StringBuilder sb = new StringBuilder();
+                for (byte x : b) sb.append(String.format("%02x", x));
+                long now = System.currentTimeMillis();
+                for (Map.Entry<String, Long> e : handoffs.entrySet()) if (e.getValue() < now) handoffs.remove(e.getKey());
+                handoffs.put(sb.toString(), now + 60_000L);
+                return Res.json(J.obj("url", "http://" + ips.get(0) + ":" + Prefs.port(ctx) + "/?h=" + sb));
+            }
 
             case "/api/diag": {
                 Res d = new Res();
