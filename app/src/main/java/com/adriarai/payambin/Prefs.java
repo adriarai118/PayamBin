@@ -72,6 +72,31 @@ public final class Prefs {
         return sb.toString();
     }
 
+    // ---------- اشتراک اینترنت (پروکسی) ----------
+    public static boolean proxyOn(Context c) {
+        return sp(c).getBoolean("proxy_on", false);
+    }
+
+    public static void setProxyOn(Context c, boolean v) {
+        sp(c).edit().putBoolean("proxy_on", v).apply();
+    }
+
+    public static int proxyPort(Context c) {
+        return sp(c).getInt("proxy_port", 8888);
+    }
+
+    public static void setProxyPort(Context c, int p) {
+        sp(c).edit().putInt("proxy_port", p).apply();
+    }
+
+    public static Set<String> proxyClients(Context c) {
+        return new HashSet<>(sp(c).getStringSet("proxy_clients", new HashSet<String>()));
+    }
+
+    public static void setProxyClients(Context c, Set<String> s) {
+        sp(c).edit().putStringSet("proxy_clients", new HashSet<>(s)).apply();
+    }
+
     /** تم برنامه: system | light | dark */
     public static String theme(Context c) {
         return sp(c).getString("theme", "system");

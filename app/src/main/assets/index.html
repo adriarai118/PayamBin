@@ -319,6 +319,9 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
     <h3>🌐 آدرس</h3>
     <div id="addrHelp"></div>
 
+    <h3>🌐 اشتراک اینترنت گوشی</h3>
+    <div id="proxyHelp"></div>
+
     <h3>🩺 گزارش عیب‌یابی</h3>
     <p class="mute">رویدادهای گوشی (خاموش/روشن شدن صفحه، حالت چرت، قطع وای‌فای، قطع دسترسی اعلان) با ساعت. <a href="/api/diag" target="_blank">نمایش گزارش</a></p>
 
@@ -1109,6 +1112,8 @@ async function renderSettings() {
   $('#addrHelp').innerHTML = `<p>آدرس ثابت: <a href="${hostUrl()}" style="direction:ltr">${hostUrl()}</a> ${a.mdns === 'فعال' ? '<span class="okline">✓</span>' : `<span class="badline">(${esc(a.mdns || 'نامشخص')})</span>`}</p>
     <p class="mute">با عوض شدن IP گوشی هم کار می‌کند. اگر باز نشد: ویندوز ۱۰/۱۱ لازم است، شبکهٔ وای‌فای/LAN در ویندوز باید <b>Private</b> باشد، و در این حالت از آدرس IP استفاده کنید: ${ips || '—'}</p>`;
 
+  renderProxy();
+
   let key = '…';
   try { key = (await api('/api/apikey')).key; } catch (e) {}
   $('#apiKey').textContent = key;
@@ -1128,6 +1133,25 @@ r = requests.get("${base}/api/otp",
 print(r["code"])`) +
     ex('خروجی نمونه:', `{"code":"583921","source":"sms","from":"Bank Mellat","text":"رمز پویا: 583921 ...","time":1763000000000}`);
 }
+async function renderProxy(info) {
+  if (!info) { try { info = await api('/api/proxy'); } catch (e) { return; } }
+  const mbs = b => faNum((b / 1048576).toFixed(1)) + ' MB';
+  const pac = `http://${info.ip}:${st.port}/proxy.pac`;
+  $('#proxyHelp').innerHTML = `
+    <p class="mute">این کامپیوتر از اینترنت گوشی (داده همراه، یا فیلترشکن اگر روشن باشد) استفاده می‌کند. شبکه‌ی داخلی اداره مثل قبل مستقیم می‌ماند.</p>
+    <div class="keyrow"><b style="flex:1">${info.on ? '<span class="okline">● روشن</span> — مسیر: ' + esc(info.route) : (info.wanted ? '<span class="badline">● ' + esc(info.status) + '</span>' : '● خاموش')}</b>
+      <button class="${info.on ? '' : 'pri'}" id="pxToggle">${info.on ? 'خاموش کردن' : 'روشن کردن'}</button></div>
+    ${info.on ? `<p class="mute">مصرف: ↑ ${mbs(info.up)} · ↓ ${mbs(info.down)} · اتصال فعال: ${faNum(info.active)}</p>` : ''}
+    <p><b>تنظیم ویندوز (یک بار):</b> Settings ← Network &amp; Internet ← Proxy ← «Use setup script» را روشن کنید و این آدرس را بدهید:</p>
+    <div class="keyrow"><code>${esc(pac)}</code><button id="copyPac">کپی</button></div>
+    <p class="mute">ویندوز ۷: Internet Options ← Connections ← LAN settings ← «Use automatic configuration script» با همین آدرس.
+    یا دستی: پروکسی <code>${esc(info.ip)}</code> پورت <code>${info.port}</code> و تیک «Bypass proxy server for local addresses».</p>
+    <p class="mute">دستگاه‌های مجاز: ${(info.clients || []).map(c => `<code>${esc(c)}</code>`).join(' ') || '—'} <button id="pxClear" style="padding:2px 8px;font-size:12px">پاک کردن</button></p>`;
+  $('#pxToggle').onclick = async () => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({on: !info.on})})); } catch (e) {} };
+  $('#copyPac').onclick = () => copy(pac);
+  $('#pxClear').onclick = async () => { try { renderProxy(await api('/api/proxy', {method: 'POST', body: JSON.stringify({clearClients: true})})); toast('فقط همین کامپیوتر مجاز ماند'); } catch (e) {} };
+}
+
 $('#copyKey').onclick = () => copy($('#apiKey').textContent);
 $('#newKey').onclick = async () => {
   if (!confirm('کلید فعلی باطل شود و کلید جدید ساخته شود؟ (اسکریپت‌ها را باید به‌روز کنید)')) return;

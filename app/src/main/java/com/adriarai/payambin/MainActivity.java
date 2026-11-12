@@ -592,6 +592,21 @@ public class MainActivity extends Activity {
         auto.setOnCheckedChangeListener((b, v) -> Prefs.setAutoStart(this, v));
         final TextView portBtn = button(k2, "", false, v -> askPort());
 
+        LinearLayout kp = card();
+        heading(kp, "🌐 اشتراک اینترنت گوشی با کامپیوتر");
+        para(kp, "کامپیوترِ شبکه‌ی داخلی از اینترنت گوشی (داده همراه، یا فیلترشکن اگر روشن باشد) استفاده می‌کند. فقط دستگاهی که با رمز وارد صفحه‌ی پیام‌بین شده اجازه دارد.");
+        Switch px = switchRow(kp, "روشن", Prefs.proxyOn(this));
+        px.setOnCheckedChangeListener((b, v) -> ServerService.setProxy(this, v));
+        final TextView pxInfo = text(13, TEXT, false);
+        pxInfo.setTextIsSelectable(true);
+        pxInfo.setPadding(0, dp(6), 0, 0);
+        kp.addView(pxInfo);
+        button(kp, "پورت اشتراک اینترنت", false, v -> askProxyPort());
+        button(kp, "پاک کردن دستگاه‌های مجاز", false, v -> {
+            ProxyServer.clearAllowed(this);
+            Toast.makeText(this, "پاک شد؛ هر دستگاه باید دوباره وارد صفحه‌ی پیام‌بین شود", Toast.LENGTH_LONG).show();
+        });
+
         LinearLayout k3 = card();
         heading(k3, "امنیت");
         final TextView pinTv = para(k3, "");
@@ -614,6 +629,18 @@ public class MainActivity extends Activity {
                 .setNegativeButton("انصراف", null).show());
 
         pageRefresh = () -> {
+            java.util.List<String> ips = Net.localIps();
+            String ip = ips.isEmpty() ? "?" : ips.get(0);
+            if (ProxyServer.isRunning()) {
+                pxInfo.setText("وضعیت: " + ProxyServer.status + "\nمسیر اینترنت: " + ProxyServer.route
+                        + "\nمصرف: ↑ " + mb(ProxyServer.bytesUp.get()) + "  ↓ " + mb(ProxyServer.bytesDown.get())
+                        + "  · اتصال فعال: " + ProxyServer.active.get()
+                        + "\nدستگاه‌های مجاز: " + ProxyServer.allowedList(this)
+                        + "\n\nدر ویندوز ← Settings ← Network ← Proxy:\n• Use setup script: http://" + ip + ":" + Prefs.port(this) + "/proxy.pac"
+                        + "\nیا Manual proxy: " + ip + " پورت " + Prefs.proxyPort(this) + " (تیک «local addresses» را بزنید)");
+            } else {
+                pxInfo.setText(Prefs.proxyOn(this) ? "وضعیت: " + ProxyServer.status : "خاموش است");
+            }
             portBtn.setText("پورت: " + Prefs.port(this) + "  (تغییر)");
             pinTv.setText("رمز ورود فعلی: " + Prefs.pin(this));
             keyTv.setText("\nکلید API: " + Prefs.apiKey(this));
@@ -801,6 +828,37 @@ public class MainActivity extends Activity {
                             handler.postDelayed(() -> ServerService.start(this), 600);
                         }
                         if (pageRefresh != null) handler.postDelayed(pageRefresh, 900);
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(this, "عدد نامعتبر", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("انصراف", null)
+                .show();
+    }
+
+    private static String mb(long b) {
+        return String.format(Locale.US, "%.1f MB", b / 1048576.0);
+    }
+
+    private void askProxyPort() {
+        final EditText et = new EditText(this);
+        et.setInputType(InputType.TYPE_CLASS_NUMBER);
+        et.setText(String.valueOf(Prefs.proxyPort(this)));
+        et.setTextColor(TEXT);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(et, new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+        dialog().setTitle("پورت اشتراک اینترنت")
+                .setView(box)
+                .setPositiveButton("ذخیره", (d, w) -> {
+                    try {
+                        int p = Integer.parseInt(et.getText().toString().trim());
+                        if (p < 1024 || p > 65535 || p == Prefs.port(this)) throw new NumberFormatException();
+                        Prefs.setProxyPort(this, p);
+                        if (ProxyServer.isRunning()) {
+                            ProxyServer.stop();
+                            ProxyServer.start(this);
+                        }
                     } catch (NumberFormatException e) {
                         Toast.makeText(this, "عدد نامعتبر", Toast.LENGTH_SHORT).show();
                     }

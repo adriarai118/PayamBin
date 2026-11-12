@@ -306,6 +306,13 @@ public class WebServer {
             res.body = index();
             return res;
         }
+        if (path.equals("/proxy.pac")) {
+            java.util.List<String> ips = Net.localIps();
+            Res res = new Res();
+            res.type = "application/x-ns-proxy-autoconfig";
+            res.body = ProxyServer.pac(ips.isEmpty() ? "127.0.0.1" : ips.get(0), Prefs.proxyPort(ctx)).getBytes(StandardCharsets.UTF_8);
+            return res;
+        }
         if (path.equals("/favicon.ico")) {
             Res res = new Res();
             res.status = 204;
@@ -333,6 +340,7 @@ public class WebServer {
 
         String token = r.cookie("pb");
         if (!Prefs.validToken(ctx, token)) return Res.err(401, "login required");
+        ProxyServer.allow(ctx, r.ip); // این دستگاه می‌تواند از اینترنت گوشی استفاده کند
 
         switch (path) {
             case "/api/logout":
@@ -347,6 +355,7 @@ public class WebServer {
                         "files", NotifStore.Versions.files.get(),
                         "clip", NotifStore.Versions.clip.get(),
                         "ringing", Ringer.ringing,
+                        "proxy", proxyInfo(),
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -439,6 +448,17 @@ public class WebServer {
                 Ringer.stop(ctx);
                 return Res.json(J.obj("ok", true));
 
+            case "/api/proxy":
+                if (r.method.equals("POST")) {
+                    JSONObject b = r.json();
+                    if (b.has("on")) ServerService.setProxy(ctx, b.optBoolean("on"));
+                    if (b.optBoolean("clearClients")) {
+                        ProxyServer.clearAllowed(ctx);
+                        ProxyServer.allow(ctx, r.ip);
+                    }
+                }
+                return Res.json(proxyInfo());
+
             case "/api/handoff": {
                 java.util.List<String> ips = Net.localIps();
                 if (ips.isEmpty()) return Res.json(J.obj("url", null));
@@ -529,6 +549,16 @@ public class WebServer {
         if (len <= 0) return Res.err(400, "empty");
         java.io.File f = FileStore.receive(ctx, r.query.get("name"), in, len);
         return Res.json(J.obj("ok", true, "name", f.getName()));
+    }
+
+    private JSONObject proxyInfo() {
+        java.util.List<String> ips = Net.localIps();
+        return J.obj("on", ProxyServer.isRunning(), "wanted", Prefs.proxyOn(ctx),
+                "status", ProxyServer.status, "route", ProxyServer.route,
+                "ip", ips.isEmpty() ? null : ips.get(0), "port", Prefs.proxyPort(ctx),
+                "up", ProxyServer.bytesUp.get(), "down", ProxyServer.bytesDown.get(),
+                "active", ProxyServer.active.get(),
+                "clients", new JSONArray(ProxyServer.allowedList(ctx)));
     }
 
     private String otpCacheKey = "";

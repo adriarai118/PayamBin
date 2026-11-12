@@ -70,6 +70,13 @@ public class ServerService extends Service {
         c.stopService(new Intent(c, ServerService.class));
     }
 
+    /** روشن/خاموش کردن اشتراک اینترنت */
+    public static void setProxy(Context c, boolean on) {
+        Prefs.setProxyOn(c, on);
+        if (on && running) ProxyServer.start(c);
+        else if (!on) ProxyServer.stop();
+    }
+
     public static String address(Context c) {
         List<String> ips = Net.localIps();
         if (ips.isEmpty()) return null;
@@ -194,6 +201,7 @@ public class ServerService extends Service {
             registerPhone();
             startMdns();
             registerDiag();
+            if (Prefs.proxyOn(this)) ProxyServer.start(this);
             handler.postDelayed(refresher, 20_000);
         }
         return START_STICKY;
@@ -334,6 +342,7 @@ public class ServerService extends Service {
         } catch (Exception ignored) {
         }
         phoneReceiverOn = false;
+        ProxyServer.stop();
         if (mdns != null) mdns.stop();
         mdns = null;
         try {
