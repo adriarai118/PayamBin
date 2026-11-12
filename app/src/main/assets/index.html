@@ -319,8 +319,12 @@ document.addEventListener('click', e => {
 /* ارتباط با گوشی */
 class AuthError extends Error {}
 async function api(path, opts = {}) {
-  const r = await fetch(path, Object.assign({credentials: 'same-origin', cache: 'no-store',
-    headers: {'Content-Type': 'application/json'}}, opts));
+  const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), path.includes('wait=') ? 70000 : 10000);
+  let r;
+  try {
+    r = await fetch(path, Object.assign({credentials: 'same-origin', cache: 'no-store', signal: ctl.signal,
+      headers: {'Content-Type': 'application/json'}}, opts));
+  } finally { clearTimeout(to); }
   if (r.status === 401 && path !== '/api/login') { showLogin(); throw new AuthError('auth'); }
   let j = null; try { j = await r.json(); } catch (e) {}
   if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
@@ -426,6 +430,10 @@ async function poll() {
   if ($('#app').classList.contains('hidden')) { st.polling = false; return; }
   try {
     const s = await api('/api/state');
+    if (st.offSince) {
+      if (st.offWarned) winNotify('✅ پیام‌بین دوباره وصل شد', 'ارتباط با گوشی برقرار شد', 'conn');
+      st.offSince = 0; st.offWarned = false;
+    }
     $('#conn').classList.remove('off'); $('#device').textContent = s.device;
     st.perms = s.perms; renderBanner();
     st.addr = s.addr; if (s.addr) st.port = s.addr.port;
@@ -436,12 +444,20 @@ async function poll() {
   } catch (e) {
     if (e instanceof AuthError) { st.polling = false; return; }
     $('#conn').classList.add('off'); $('#device').textContent = 'گوشی در دسترس نیست';
+    if (!st.offSince) st.offSince = Date.now();
+    else if (!st.offWarned && Date.now() - st.offSince > 30000) {
+      st.offWarned = true;
+      winNotify('⚠️ ارتباط با گوشی قطع شد', st.perms.battery === false
+        ? 'بهینه‌سازی باتری برای پیام‌بین روشن است؛ آن را در گوشی خاموش کنید'
+        : 'وای‌فای گوشی یا سرور پیام‌بین را بررسی کنید', 'conn');
+    }
   }
   setTimeout(poll, 3000);
 }
 
 function renderBanner() {
   const p = st.perms, msgs = [];
+  if (p.battery === false) msgs.push('🔋 «بهینه‌سازی باتری» برای پیام‌بین روشن است؛ به همین دلیل وقتی صفحهٔ گوشی چند دقیقه خاموش بماند ارتباط قطع می‌شود. در برنامهٔ گوشی دکمهٔ «جلوگیری از بسته شدن توسط بهینه‌ساز باتری» را بزنید' + (/xiaomi|redmi|poco/i.test(p.maker || '') ? ' و در شیائومی Autostart را روشن و صرفه‌جویی باتری را روی No restrictions بگذارید.' : '.'));
   if (p.readSms === false) msgs.push('⚠️ مجوز «خواندن پیامک» روی گوشی داده نشده — برنامه را روی گوشی باز کنید و دکمهٔ مجوزها را بزنید.');
   if (st.tab === 'notif' && p.notif === false) msgs.push('⚠️ «دسترسی به اعلان‌ها» فعال نیست؛ پیام‌های بله، تلگرام، واتساپ و … اینجا نمی‌آیند.');
   if (st.tab === 'sms' && p.sendSms === false) msgs.push('ارسال پیامک از کامپیوتر غیرفعال است (مجوز ارسال پیامک داده نشده).');

@@ -33,7 +33,7 @@ public class ServerService extends Service {
 
     private WebServer server;
     private PowerManager.WakeLock wakeLock;
-    private WifiManager.WifiLock wifiLock;
+    private WifiManager.WifiLock wifiLock, wifiLock2;
     private ContentObserver smsObserver, callObserver;
     private WifiManager.MulticastLock mcLock;
     private Mdns mdns;
@@ -140,10 +140,16 @@ public class ServerService extends Service {
         }
         try {
             WifiManager wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
-            int mode = Build.VERSION.SDK_INT >= 29 ? WifiManager.WIFI_MODE_FULL_LOW_LATENCY : WifiManager.WIFI_MODE_FULL_HIGH_PERF;
-            wifiLock = wm.createWifiLock(mode, "PayamBin::wifi");
+            // HIGH_PERF با صفحهٔ خاموش هم وای‌فای را از حالت کم‌مصرف بیرون نگه می‌دارد
+            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PayamBin::wifi");
             wifiLock.setReferenceCounted(false);
             wifiLock.acquire();
+            if (Build.VERSION.SDK_INT >= 29) {
+                // LOW_LATENCY فقط وقتی صفحه روشن است اثر دارد؛ برای سرعت بیشتر در آن حالت
+                wifiLock2 = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "PayamBin::wifi-ll");
+                wifiLock2.setReferenceCounted(false);
+                wifiLock2.acquire();
+            }
         } catch (Exception ignored) {
         }
     }
@@ -255,6 +261,7 @@ public class ServerService extends Service {
         }
         try {
             if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
+            if (wifiLock2 != null && wifiLock2.isHeld()) wifiLock2.release();
         } catch (Exception ignored) {
         }
         super.onDestroy();

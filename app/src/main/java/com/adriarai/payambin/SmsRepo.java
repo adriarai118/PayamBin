@@ -236,6 +236,15 @@ public final class SmsRepo {
         else sm.sendTextMessage(address, null, body, null, null);
     }
 
+    public static boolean ignoringBattery(Context ctx) {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            return pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
     /** وضعیت مجوزها برای نمایش در صفحهٔ وب */
     public static JSONObject perms(Context ctx) {
         return J.obj(
@@ -244,6 +253,8 @@ public final class SmsRepo {
                 "contacts", has(ctx, Manifest.permission.READ_CONTACTS),
                 "phone", has(ctx, Manifest.permission.READ_PHONE_STATE),
                 "calls", has(ctx, Manifest.permission.READ_CALL_LOG),
-                "notif", NotifListener.isEnabled(ctx));
+                "notif", NotifListener.isEnabled(ctx),
+                "battery", ignoringBattery(ctx),
+                "maker", Build.MANUFACTURER);
     }
 }

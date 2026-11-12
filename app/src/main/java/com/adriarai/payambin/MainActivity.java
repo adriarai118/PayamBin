@@ -131,6 +131,16 @@ public class MainActivity extends Activity {
         batteryBtn.setOnClickListener(v -> askBattery());
         root.addView(batteryBtn, lp(8));
 
+        String maker = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase(java.util.Locale.ROOT);
+        if (maker.contains("xiaomi") || maker.contains("redmi") || maker.contains("poco")) {
+            Button auto = button("شیائومی: روشن کردن Autostart");
+            auto.setOnClickListener(v -> openXiaomiAutostart());
+            root.addView(auto, lp(8));
+            Button bs = button("شیائومی: صرفه‌جویی باتری ← No restrictions");
+            bs.setOnClickListener(v -> openAppDetails());
+            root.addView(bs, lp(8));
+        }
+
         // تنظیمات
         TextView h2 = text(16, Color.parseColor("#0F172A"), true);
         h2.setText("تنظیمات");
@@ -320,6 +330,31 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    private void openXiaomiAutostart() {
+        String[][] targets = {
+                {"com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"},
+                {"com.miui.securitycenter", "com.miui.appmanager.ApplicationsDetailsActivity"},
+        };
+        for (String[] t : targets) {
+            try {
+                Intent i = new Intent();
+                i.setClassName(t[0], t[1]);
+                i.putExtra("package_name", getPackageName());
+                startActivity(i);
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+        openAppDetails();
+    }
+
+    private void openAppDetails() {
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+        } catch (Exception ignored) {
         }
     }
 
