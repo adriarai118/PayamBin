@@ -370,6 +370,7 @@ public class WebServer {
                         "ringing", Ringer.ringing,
                         "proxy", proxyInfo(r.ip),
                         "cam", CameraService.status(),
+                        "screen", ScreenService.status(),
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -499,6 +500,101 @@ public class WebServer {
                 if (f == null) return Res.err(404, "no frame");
                 Res res = Res.file(new java.io.ByteArrayInputStream(f), f.length, "image/jpeg",
                         "PayamBin-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new java.util.Date()) + ".jpg", true);
+                return res;
+            }
+
+            case "/api/screen":
+                if (r.method.equals("POST")) {
+                    JSONObject b = r.json();
+                    String act = b.optString("action");
+                    if (b.has("quality")) {
+                        String q = b.optString("quality");
+                        ScreenService.quality = q.equals("low") || q.equals("high") ? q : "mid";
+                    }
+                    if (b.has("fps")) ScreenService.fps = Math.max(2, Math.min(30, b.optInt("fps", 15)));
+                    if (act.equals("start")) ScreenService.request(ctx);
+                    else if (act.equals("stop")) ScreenService.stop(ctx);
+                    else if (act.equals("wake")) ScreenService.wake(ctx);
+                }
+                return Res.json(J.put(ScreenService.status(), "controlEnabled", ControlService.isEnabled(ctx)));
+
+            case "/api/screen/input": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                ControlService cs = ControlService.instance;
+                if (cs == null) return Res.err(409, "کنترل غیرفعال است: در گوشی، تنظیمات ← دسترسی‌پذیری ← «پیام‌بین — کنترل از کامپیوتر» را روشن کنید");
+                JSONObject b = r.json();
+                float W = ScreenService.realW, H = ScreenService.realH;
+                if (W <= 0 || H <= 0) {
+                    android.util.DisplayMetrics m = ctx.getResources().getDisplayMetrics();
+                    W = m.widthPixels;
+                    H = m.heightPixels;
+                }
+                String type = b.optString("type");
+                String err = null;
+                switch (type) {
+                    case "tap":
+                        cs.tap((float) b.optDouble("x") * W, (float) b.optDouble("y") * H, 60);
+                        break;
+                    case "long":
+                        cs.tap((float) b.optDouble("x") * W, (float) b.optDouble("y") * H, 700);
+                        break;
+                    case "swipe":
+                        cs.swipe((float) b.optDouble("x1") * W, (float) b.optDouble("y1") * H,
+                                (float) b.optDouble("x2") * W, (float) b.optDouble("y2") * H, b.optLong("ms", 300));
+                        break;
+                    case "scroll": {
+                        float x = (float) b.optDouble("x") * W, y = (float) b.optDouble("y") * H;
+                        float dy = (float) Math.max(-0.45, Math.min(0.45, b.optDouble("dy"))) * H;
+                        float y1 = Math.max(H * 0.1f, Math.min(H * 0.9f, y));
+                        float y2 = Math.max(H * 0.05f, Math.min(H * 0.95f, y1 - dy));
+                        cs.swipe(x, y1, x, y2, 220);
+                        break;
+                    }
+                    case "global":
+                        cs.global(b.optString("name"));
+                        break;
+                    case "text":
+                        err = cs.type(b.optString("text"));
+                        break;
+                    case "key":
+                        err = cs.key(b.optString("key"));
+                        break;
+                    default:
+                        return Res.err(400, "unknown input");
+                }
+                if (err != null) return Res.err(409, err);
+                return Res.json(J.obj("ok", true));
+            }
+
+            case "/api/screen/stream": {
+                Res res = new Res();
+                res.type = "multipart/x-mixed-replace; boundary=pbframe";
+                res.writer = out -> {
+                    ScreenService.viewers.incrementAndGet();
+                    try {
+                        long last = -1;
+                        while (true) {
+                            byte[] f;
+                            long s;
+                            synchronized (ScreenService.LOCK) {
+                                if (ScreenService.seq == last) ScreenService.LOCK.wait(2000);
+                                f = ScreenService.frame;
+                                s = ScreenService.seq;
+                            }
+                            String ss = ScreenService.state;
+                            if (ss.equals("off") || ss.equals("error")) break;
+                            if (f == null || s == last) continue;
+                            last = s;
+                            out.write(("--pbframe\r\nContent-Type: image/jpeg\r\nContent-Length: " + f.length + "\r\n\r\n")
+                                    .getBytes(StandardCharsets.ISO_8859_1));
+                            out.write(f);
+                            out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                            out.flush();
+                        }
+                    } finally {
+                        ScreenService.viewers.decrementAndGet();
+                    }
+                };
                 return res;
             }
 

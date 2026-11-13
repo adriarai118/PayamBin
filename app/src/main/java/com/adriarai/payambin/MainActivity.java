@@ -519,6 +519,14 @@ public class MainActivity extends Activity {
         final TextView[] media = statusRow(k, "عکس‌ها و ویدیوها (برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] cam = statusRow(k, "دوربین (پخش زنده برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] mic = statusRow(k, "میکروفون (صدای زنده و ضبط با صدا)", "اجازه", v -> askPerms());
+        final TextView[] ctl = statusRow(k, "کنترل گوشی با ماوس و کیبورد (دسترسی‌پذیری)", "فعال‌سازی", v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                Toast.makeText(this, "«پیام‌بین — کنترل از کامپیوتر» را روشن کنید", Toast.LENGTH_LONG).show();
+            } catch (Exception e) {
+                openAppDetails();
+            }
+        });
         final TextView[] notif = statusRow(k, "اعلان پیام‌رسان‌ها (بله، تلگرام، …)", "فعال‌سازی", v -> {
             try {
                 startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -558,6 +566,7 @@ public class MainActivity extends Activity {
             setMark(media, MediaRepo.allowed(this));
             setMark(cam, SmsRepo.has(this, Manifest.permission.CAMERA));
             setMark(mic, SmsRepo.has(this, Manifest.permission.RECORD_AUDIO));
+            setMark(ctl, ControlService.isEnabled(this));
             setMark(notif, NotifListener.isEnabled(this));
             setMark(bat, SmsRepo.ignoringBattery(this));
             setMark(inst, Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls());

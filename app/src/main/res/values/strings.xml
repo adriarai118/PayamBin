@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="control_desc">کنترل گوشی از کامپیوتر با ماوس و کیبورد (پیام‌بین). فقط وقتی صفحه‌ی گوشی را از کامپیوتر می‌بینید استفاده می‌شود.</string>
+    <string name="control_label">پیام‌بین — کنترل از کامپیوتر</string>
+</resources>
