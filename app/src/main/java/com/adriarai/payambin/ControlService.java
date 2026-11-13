@@ -96,12 +96,27 @@ public class ControlService extends AccessibilityService {
 
     // ---------------- تایپ ----------------
 
+    /** کادر فعال؛ همیشه با refresh تا متن و مکان‌نما تازه از خود برنامه خوانده شود (نه از حافظه‌ی موقت) */
     private AccessibilityNodeInfo focusedEditable() {
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) return null;
-        AccessibilityNodeInfo n = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-        if (n != null && n.isEditable()) return n;
-        return null;
+        AccessibilityNodeInfo n = findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (n == null) {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) n = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        }
+        if (n == null) return null;
+        n.refresh();
+        return n.isEditable() ? n : null;
+    }
+
+    /** راه دوم: چسباندن از کلیپ‌بورد در جای مکان‌نما */
+    private boolean paste(AccessibilityNodeInfo n, String s) {
+        try {
+            android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("PayamBin", s));
+            return n.performAction(AccessibilityNodeInfo.ACTION_PASTE);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean setText(AccessibilityNodeInfo n, CharSequence text, int cursor) {
@@ -126,18 +141,29 @@ public class ControlService extends AccessibilityService {
     }
 
     /** نوشتن متن در جای مکان‌نما */
-    public String type(String s) {
+    public synchronized String type(String s) {
         AccessibilityNodeInfo n = focusedEditable();
         if (n == null) return "روی گوشی هیچ کادر متنی انتخاب نشده؛ اول روی کادر کلیک کنید";
         String cur = currentText(n);
         int a = n.getTextSelectionStart(), b = n.getTextSelectionEnd();
         if (a < 0 || a > cur.length()) a = cur.length();
         if (b < a || b > cur.length()) b = a;
+        if (b < a) { int t = a; a = b; b = t; }
         String next = cur.substring(0, a) + s + cur.substring(b);
-        return setText(n, next, a + s.length()) ? null : "نوشتن در این کادر ممکن نشد";
+        if (setText(n, next, a + s.length())) {
+            // بررسی: آیا برنامه همان متن را قبول کرد؟
+            n.refresh();
+            String now = currentText(n);
+            if (now.equals(next) || now.contains(s)) return null;
+            // برنامه متن را تغییر داد/رد کرد → متن قبلی را برگردان و با چسباندن امتحان کن
+            setText(n, cur, a);
+            n.refresh();
+        }
+        if (paste(n, s)) return null;
+        return "نوشتن در این کادر ممکن نشد";
     }
 
-    public String key(String k) {
+    public synchronized String key(String k) {
         AccessibilityNodeInfo n = focusedEditable();
         switch (k) {
             case "Backspace":
