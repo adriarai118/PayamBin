@@ -33,9 +33,100 @@ public final class NotifStore {
     private long nextId = 1;
     private boolean savePending = false;
 
+    private final File blockFile;
+    private final ArrayList<JSONObject> rules = new ArrayList<>(); // {type: app|conv, key, pkg, app, title}
+
     private NotifStore(Context c) {
         file = new File(c.getFilesDir(), "notifs.json");
+        blockFile = new File(c.getFilesDir(), "notif_block.json");
         load();
+        loadRules();
+    }
+
+    // ---------------- مسدودسازی (تبلیغات) ----------------
+
+    private void loadRules() {
+        try {
+            if (!blockFile.exists()) return;
+            FileInputStream in = new FileInputStream(blockFile);
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            in.close();
+            JSONArray a = new JSONArray(new String(bo.toByteArray(), StandardCharsets.UTF_8));
+            for (int i = 0; i < a.length(); i++) rules.add(a.getJSONObject(i));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void saveRules() {
+        JSONArray a = new JSONArray();
+        for (JSONObject o : rules) a.put(o);
+        final String data = a.toString();
+        io.execute(() -> {
+            try {
+                FileOutputStream out = new FileOutputStream(blockFile);
+                out.write(data.getBytes(StandardCharsets.UTF_8));
+                out.close();
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    private boolean matches(JSONObject rule, String pkg, String title) {
+        if (!rule.optString("pkg").equals(pkg)) return false;
+        return rule.optString("type").equals("app") || rule.optString("title").equals(title);
+    }
+
+    private boolean blocked(String pkg, String title) {
+        for (JSONObject r : rules) if (matches(r, pkg, title)) return true;
+        return false;
+    }
+
+    /** مسدود کردن فرستنده (conv) یا کل برنامه (app) بر اساس یک اعلان؛ اعلان‌های قبلی مشابه هم حذف می‌شوند */
+    public synchronized JSONObject block(long id, String scope) {
+        JSONObject n = byId(id);
+        if (n == null) return null;
+        String pkg = n.optString("pkg"), title = n.optString("title");
+        boolean app = "app".equals(scope);
+        String key = app ? "app|" + pkg : "conv|" + pkg + "|" + title;
+        for (JSONObject r : rules) if (r.optString("key").equals(key)) return r;
+        JSONObject rule = J.obj("type", app ? "app" : "conv", "key", key, "pkg", pkg,
+                "app", n.optString("app"), "title", app ? "" : title, "time", System.currentTimeMillis());
+        rules.add(rule);
+        saveRules();
+        for (int i = items.size() - 1; i >= 0; i--) {
+            JSONObject o = items.get(i);
+            if (matches(rule, o.optString("pkg"), o.optString("title"))) items.remove(i);
+        }
+        Versions.notif.incrementAndGet();
+        scheduleSave();
+        return rule;
+    }
+
+    public synchronized void unblock(String key) {
+        for (int i = rules.size() - 1; i >= 0; i--) if (rules.get(i).optString("key").equals(key)) rules.remove(i);
+        saveRules();
+        Versions.notif.incrementAndGet();
+    }
+
+    public synchronized JSONArray rules() {
+        JSONArray a = new JSONArray();
+        for (JSONObject o : rules) a.put(o);
+        return a;
+    }
+
+    public synchronized boolean delete(long id) {
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).optLong("id") == id) {
+                items.remove(i);
+                Versions.notif.incrementAndGet();
+                scheduleSave();
+                return true;
+            }
+        }
+        return false;
     }
 
     private void load() {
@@ -59,6 +150,7 @@ public final class NotifStore {
 
     public synchronized void add(JSONObject o) {
         String pkg = o.optString("pkg"), title = o.optString("title"), text = o.optString("text");
+        if (!o.optBoolean("out") && blocked(pkg, title)) return; // مسدودشده (تبلیغات)
         // تکراری‌ها (به‌روزرسانی همان اعلان) را نادیده بگیر
         for (int i = 0; i < Math.min(40, items.size()); i++) {
             JSONObject p = items.get(i);

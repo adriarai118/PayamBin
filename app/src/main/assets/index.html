@@ -136,6 +136,18 @@ main{flex:1;min-height:0;display:flex}
 .call .num{direction:ltr;text-align:right;color:var(--mute);font-size:12px}
 .call button{padding:5px 10px;font-size:12px}
 
+/* حذف/مسدود اعلان */
+.n .acts{display:flex;gap:4px;flex:none;opacity:.45;transition:.15s}
+.n:hover .acts{opacity:1}
+.n .acts button{padding:2px 7px;font-size:12px;border-radius:7px}
+.bmenu{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding:8px;background:var(--soft);border-radius:9px;font-size:13px;align-items:center}
+.bmenu button{padding:4px 10px;font-size:12px}
+.blk{padding:8px 12px;border-top:1px solid var(--line);font-size:13px}
+.blk summary{cursor:pointer;color:var(--mute)}
+.blk .row{display:flex;align-items:center;gap:6px;padding:5px 0}
+.blk .row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk .row button{padding:2px 8px;font-size:12px}
+
 /* پاسخ اعلان */
 .n.out{background:var(--out);border-color:transparent}
 .rbox{display:flex;gap:6px;margin-top:8px}
@@ -317,6 +329,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
       <aside class="side">
         <div class="side-top"><b style="flex:1">برنامه‌ها</b><button id="clearN">پاک کردن</button></div>
         <div class="list" id="appList"></div>
+        <details class="blk" id="blkBox"><summary id="blkSum">🚫 مسدودشده‌ها</summary><div id="blkList"></div></details>
       </aside>
       <section class="conv">
         <div class="conv-head" id="nHead"></div>
@@ -457,9 +470,6 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
 
     <h3>🌐 اشتراک اینترنت گوشی</h3>
     <div id="proxyHelp"></div>
-
-    <h3>🌍 دسترسی از اینترنت</h3>
-    <div id="relayHelp" class="mute"></div>
 
     <h3>🩺 گزارش عیب‌یابی</h3>
     <p class="mute">رویدادهای گوشی (خاموش/روشن شدن صفحه، حالت چرت، قطع وای‌فای، قطع دسترسی اعلان) با ساعت. <a href="/api/diag" target="_blank">نمایش گزارش</a></p>
@@ -906,7 +916,8 @@ function renderNotifBadge() {
 async function refreshNotifs() {
   let r;
   try { r = await api('/api/notifs'); } catch (e) { return; }
-  st.notifs = r.items; st.apps = r.apps;
+  st.notifs = r.items; st.apps = r.apps; st.blocked = r.blocked || [];
+  renderBlocked();
   const max = st.notifs.reduce((m, n) => Math.max(m, n.id), 0);
   if (st.baseNotif !== null && max > st.baseNotif) {
     const fresh = st.notifs.filter(n => n.id > st.baseNotif);
@@ -954,8 +965,9 @@ function renderNotifs() {
     const tools = first && (n.canReply || messenger) ? `
       ${n.canReply ? `<div class="rbox"><input placeholder="پاسخ به ${esc(n.title)}…" data-rid="${n.id}"><button class="pri" data-send="${n.id}">ارسال</button></div>` : ''}
       ${messenger ? `<div class="nbtns"><button data-attach="${esc(n.pkg)}" title="فایل را به گوشی می‌فرستد و در ${esc(messenger)} آماده‌ی ارسال می‌کند">📎 فایل در ${esc(messenger)}</button></div>` : ''}` : '';
-    return `<div class="n ${n.out ? 'out' : ''}">
-      <div class="h"><span class="chip" style="background:${colorOf(n.pkg)}">${esc(n.app)}</span><span class="t">${esc(n.title)}</span><span class="tm">${fFull.format(new Date(n.time))}</span></div>
+    return `<div class="n ${n.out ? 'out' : ''}" data-id="${n.id}">
+      <div class="h"><span class="chip" style="background:${colorOf(n.pkg)}">${esc(n.app)}</span><span class="t">${esc(n.title)}</span><span class="tm">${fFull.format(new Date(n.time))}</span>
+        <span class="acts">${n.out ? '' : `<button data-blockmenu="${n.id}" title="مسدود کردن (تبلیغات)">🚫</button>`}<button data-del="${n.id}" title="حذف این اعلان">🗑</button></span></div>
       <div class="x">${n.sender ? `<span class="s">${esc(n.sender)}: </span>` : ''}${rich(n.text)}</div>${tools}
     </div>`;
   }).join('') : `<div class="empty">${st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
@@ -969,8 +981,34 @@ async function sendReply(id) {
   catch (e) { if (!(e instanceof AuthError)) toast(e.message); }
   finally { inp.disabled = false; }
 }
-$('#notifList').addEventListener('click', e => {
+$('#notifList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.del) {
+    const card = b.closest('.n'); card.style.opacity = '.3';
+    try { await api('/api/notifs/delete', {method: 'POST', body: JSON.stringify({id: Number(b.dataset.del)})}); card.remove(); st.notifs = st.notifs.filter(x => x.id !== Number(b.dataset.del)); }
+    catch (err) { card.style.opacity = ''; }
+    return;
+  }
+  if (b.dataset.blockmenu) {
+    const card = b.closest('.n'), old = card.querySelector('.bmenu');
+    if (old) { old.remove(); return; }
+    const n = st.notifs.find(x => x.id === Number(b.dataset.blockmenu)); if (!n) return;
+    const m = document.createElement('div'); m.className = 'bmenu';
+    m.innerHTML = `دیگر نشان داده نشود: <button data-block="conv" data-bid="${n.id}">فقط «${esc(n.title || 'این فرستنده')}»</button>
+      <button data-block="app" data-bid="${n.id}">کل برنامه‌ی ${esc(n.app)}</button><button data-cancel="1">انصراف</button>`;
+    card.appendChild(m); return;
+  }
+  if (b.dataset.cancel) { b.closest('.bmenu').remove(); return; }
+  if (b.dataset.block) {
+    const n = st.notifs.find(x => x.id === Number(b.dataset.bid));
+    if (b.dataset.block === 'app' && !confirm(`همه‌ی اعلان‌های «${n ? n.app : ''}» مسدود و حذف شود؟`)) return;
+    try {
+      await api('/api/notifs/block', {method: 'POST', body: JSON.stringify({id: Number(b.dataset.bid), scope: b.dataset.block})});
+      toast('مسدود شد؛ اعلان‌های قبلی هم حذف شدند'); if (b.dataset.block === 'app') st.notifApp = '';
+      await refreshNotifs();
+    } catch (err) {}
+    return;
+  }
   if (b.dataset.send) sendReply(b.dataset.send);
   if (b.dataset.attach) { st.attachPkg = b.dataset.attach; $('#attachIn').value = ''; $('#attachIn').click(); }
 });
@@ -981,6 +1019,18 @@ $('#attachIn').addEventListener('change', async () => {
   const f = $('#attachIn').files[0]; if (!f) return;
   const name = await uploadFile(f);
   if (name) shareTo(name, st.attachPkg);
+});
+
+function renderBlocked() {
+  const b = st.blocked || [];
+  $('#blkSum').textContent = `🚫 مسدودشده‌ها (${faNum(b.length)})`;
+  $('#blkBox').classList.toggle('hidden', !b.length);
+  $('#blkList').innerHTML = b.map(r => `<div class="row"><span title="${esc(r.app)} ${esc(r.title)}">${r.type === 'app' ? '📱 کل ' + esc(r.app) : esc(r.app) + ': ' + esc(r.title)}</span>
+    <button data-unblock="${esc(r.key)}">آزاد</button></div>`).join('');
+}
+$('#blkList').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-unblock]'); if (!b) return;
+  try { await api('/api/notifs/unblock', {method: 'POST', body: JSON.stringify({key: b.dataset.unblock})}); toast('آزاد شد؛ اعلان‌های بعدی دوباره نشان داده می‌شوند'); refreshNotifs(); } catch (err) {}
 });
 
 $('#clearN').onclick = async () => {
@@ -1721,11 +1771,6 @@ async function renderSettings() {
     <p class="mute">با عوض شدن IP گوشی هم کار می‌کند. اگر باز نشد: ویندوز ۱۰/۱۱ لازم است، شبکهٔ وای‌فای/LAN در ویندوز باید <b>Private</b> باشد، و در این حالت از آدرس IP استفاده کنید: ${ips || '—'}</p>`;
 
   renderProxy();
-  try {
-    const rs = (await api('/api/state')).relay || {};
-    $('#relayHelp').innerHTML = (rs.remote ? '<p class="okline">الان از طریق اینترنت (سرور واسطه) وصل هستید.</p>' : '') +
-      `<p>وضعیت: ${rs.on ? esc(rs.status) : 'خاموش (فقط شبکه‌ی داخلی)'}</p><p class="mute">روشن/خاموش کردن و وارد کردن کد سرور: در برنامه‌ی گوشی ← ☰ ← تنظیمات ← «دسترسی از اینترنت».</p>`;
-  } catch (e) {}
 
   let key = '…';
   try { key = (await api('/api/apikey')).key; } catch (e) {}
