@@ -73,10 +73,29 @@ public class CameraService extends Service {
     private volatile boolean audioRun;
 
     /** شروع میکروفون برای یک شنونده؛ اگر ممکن نبود دلیلش را برمی‌گرداند */
+    public static volatile boolean micWaiting = false;
+
+    /** null = شروع شد؛ "WAIT" = منتظر لمس روی گوشی؛ در غیر این صورت دلیل خطا */
     public static String audioStart(Context c) {
-        CameraService s = instance;
-        if (s == null) return "دوربین روشن یا آماده نیست";
         if (!SmsRepo.has(c, Manifest.permission.RECORD_AUDIO)) return "مجوز میکروفون روی گوشی داده نشده (برنامه ← مجوزها)";
+        CameraService s = instance;
+        if (s == null) {
+            if (!micWaiting) {
+                micWaiting = true;
+                Context app = c.getApplicationContext();
+                Intent i = new Intent(app, CameraService.class).setAction(ACTION_STANDBY).putExtra("mic", true);
+                // اندروید ۱۱+ میکروفونِ شروع‌شده از پس‌زمینه را بی‌صدا می‌کند → فقط وقتی برنامه جلوی چشم است مستقیم شروع کن
+                if (Build.VERSION.SDK_INT >= 30 && !MainActivity.visible) askTap(app, true);
+                else try {
+                    if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(i);
+                    else app.startService(i);
+                } catch (Exception e) {
+                    askTap(app, true);
+                }
+            }
+            return "WAIT";
+        }
+        micWaiting = false;
         s.ensureAudio();
         return null;
     }
@@ -100,6 +119,7 @@ public class CameraService extends Service {
             if (ar.getState() != android.media.AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("میکروفون در دسترس نیست");
             ar.startRecording();
             audioState = "on";
+            main.post(this::updateNotification);
             Diag.log("میکروفون روشن شد");
             long idleSince = 0;
             while (audioRun) {
@@ -136,6 +156,7 @@ public class CameraService extends Service {
             synchronized (ALOCK) {
                 ALOCK.notifyAll();
             }
+            main.post(this::updateNotification);
             Diag.log("میکروفون خاموش شد");
         }
     }
@@ -159,7 +180,7 @@ public class CameraService extends Service {
         @Override
         public void run() {
             if (viewers.get() > 0) lastViewerTime = System.currentTimeMillis();
-            else if (camOpen && System.currentTimeMillis() - lastViewerTime > 45_000) {
+            else if (camOpen && System.currentTimeMillis() - lastViewerTime > 45_000 && !(!Prefs.camStandby(CameraService.this) && audioViewers.get() > 0)) {
                 Diag.log("دوربین: کسی تماشا نمی‌کند، خاموش شد");
                 if (!goStandby()) return;
             }
@@ -267,19 +288,24 @@ public class CameraService extends Service {
     /** اعلان «لمس کنید تا دوربین روشن شود» (اندروید اجازه‌ی روشن کردن دوربین از پس‌زمینه را نمی‌دهد) */
     @SuppressWarnings("deprecation")
     static void askTap(Context c) {
-        state = "waiting_tap";
+        askTap(c, false);
+    }
+
+    @SuppressWarnings("deprecation")
+    static void askTap(Context c, boolean micOnly) {
+        if (!micOnly) state = "waiting_tap";
         try {
             NotificationManager nm = (NotificationManager) c.getSystemService(NOTIFICATION_SERVICE);
             if (Build.VERSION.SDK_INT >= 26)
                 nm.createNotificationChannel(new NotificationChannel(CH + "_ask", "درخواست دوربین", NotificationManager.IMPORTANCE_HIGH));
-            Intent i = new Intent(c, CameraService.class).setAction(ACTION_START).putExtra("tap", true);
+            Intent i = new Intent(c, CameraService.class).setAction(micOnly ? ACTION_STANDBY : ACTION_START).putExtra("tap", true);
             int f = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
             PendingIntent pi = Build.VERSION.SDK_INT >= 26 ? PendingIntent.getForegroundService(c, 7, i, f)
                     : PendingIntent.getService(c, 7, i, f);
             Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(c, CH + "_ask") : new Notification.Builder(c);
             b.setSmallIcon(R.drawable.ic_stat)
-                    .setContentTitle("📷 کامپیوتر می‌خواهد دوربین را ببیند")
-                    .setContentText("برای روشن کردن دوربین لمس کنید")
+                    .setContentTitle(micOnly ? "🎙 کامپیوتر می‌خواهد صدای گوشی را بشنود" : "📷 کامپیوتر می‌خواهد دوربین را ببیند")
+                    .setContentText(micOnly ? "برای روشن کردن میکروفون لمس کنید" : "برای روشن کردن دوربین لمس کنید")
                     .setAutoCancel(true)
                     .setContentIntent(pi)
                     .addAction(new Notification.Action.Builder(null, "روشن کن", pi).build());
@@ -321,6 +347,8 @@ public class CameraService extends Service {
             } else startForeground(NOTIF_ID, n);
         } catch (Exception e) {
             if (standbyOnly) {
+                if (intent.getBooleanExtra("mic", false) && !fromTap) askTap(this, true);
+                else micWaiting = false;
                 stopSelf();
                 return START_NOT_STICKY;
             }
@@ -340,6 +368,7 @@ public class CameraService extends Service {
             thread.start();
             camHandler = new Handler(thread.getLooper());
             main.postDelayed(idleCheck, 5000);
+            micWaiting = false;
             if (standbyOnly) {
                 state = "ready";
                 Diag.log("دوربین در حالت آماده (بدون نیاز به تأیید)");
@@ -358,12 +387,14 @@ public class CameraService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
         boolean live = camOpen || "starting".equals(state);
+        boolean micLive = "on".equals(audioState);
         return b.setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle(live ? "📷 دوربین برای کامپیوتر در حال پخش است" : "📷 دوربین آماده است (خاموش)")
+                .setContentTitle(live ? (micLive ? "📷🎙 دوربین و میکروفون در حال پخش است" : "📷 دوربین برای کامپیوتر در حال پخش است")
+                        : micLive ? "🎙 میکروفون برای کامپیوتر در حال پخش است" : "📷 دوربین و میکروفون آماده است (خاموش)")
                 .setContentText(live ? "برای قطع و غیرفعال کردن لمس کنید" : "از کامپیوتر بدون تأیید روشن می‌شود — لمس: غیرفعال کردن")
                 .setOngoing(true)
                 .setContentIntent(stop)
-                .addAction(new Notification.Action.Builder(null, live ? "قطع دوربین" : "غیرفعال کردن", stop).build())
+                .addAction(new Notification.Action.Builder(null, live || micLive ? "قطع" : "غیرفعال کردن", stop).build())
                 .build();
     }
 

@@ -47,6 +47,11 @@ header{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var
 .tab.on{background:var(--panel);box-shadow:var(--shadow);font-weight:700}
 .badge{background:var(--acc);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;min-width:20px;text-align:center}
 .spacer{flex:1}
+header{flex-wrap:wrap;row-gap:8px}
+.conn span{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab{white-space:nowrap}
+@media (max-width:1380px){ .conn span{display:none} #otpFrom{display:none} .brand{font-size:0;gap:0} .brand .logo{font-size:14px} }
+@media (max-width:1150px){ .tab{padding:6px 9px} header{gap:8px} }
 .conn{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px}
 .dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
 .conn.off .dot{background:#ef4444}
@@ -180,6 +185,19 @@ main{flex:1;min-height:0;display:flex}
 .recopts{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;color:var(--mute)}
 .recopts select{padding:4px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 
+/* میکروفون */
+.micwrap{flex:1;overflow:auto;padding:24px 16px;display:flex;justify-content:center}
+.miccard{width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px;text-align:center;align-self:flex-start;box-shadow:var(--shadow)}
+.micicon{font-size:46px;line-height:1}
+.micstat{color:var(--mute);margin:10px 0 16px;min-height:24px;line-height:1.9}
+.meter{height:14px;background:var(--soft);border-radius:8px;overflow:hidden;direction:ltr}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#22c55e,#eab308 70%,#ef4444);transition:width .08s}
+.micbtns{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.micbtns button{padding:11px 18px;font-size:15px}
+#micListen.on{background:var(--acc);border-color:var(--acc);color:#fff}
+#micRec.on{background:#dc2626;border-color:#dc2626;color:#fff}
+.mictime{font-size:22px;font-weight:700;direction:ltr;margin-top:14px;color:#dc2626}
+
 /* کلیپ‌بورد */
 .clipbox textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);resize:vertical;font:inherit}
 .citem{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;display:flex;gap:8px;align-items:flex-start}
@@ -245,6 +263,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
       <button class="tab" data-tab="calls">تماس‌ها <span class="badge hidden" id="callsBadge"></span></button>
       <button class="tab" data-tab="files">فایل‌ها <span class="badge hidden" id="filesBadge"></span></button>
       <button class="tab" data-tab="cam">دوربین <span class="recdot hidden" id="recDot"></span></button>
+      <button class="tab" data-tab="mic">میکروفون <span class="recdot hidden" id="micDot"></span></button>
     </div>
     <div class="spacer"></div>
     <div class="otp hidden" id="otpChip" title="آخرین کد تأیید — برای کپی کلیک کنید"><small>کد</small><b id="otpCode"></b><small id="otpFrom"></small></div>
@@ -341,6 +360,26 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
           <label><input type="checkbox" id="recStamp" checked> تاریخ و ساعت روی فیلم</label>
           <label><input type="checkbox" id="recAudio" checked> ضبط صدا</label>
           <span id="recSaved"></span>
+        </div>
+      </div>
+    </section>
+    <section class="view hidden" id="micView">
+      <div class="micwrap">
+        <div class="miccard">
+          <div class="micicon">🎙</div>
+          <h2 style="margin:8px 0 0;font-size:18px">میکروفون گوشی</h2>
+          <div class="micstat" id="micStat">خاموش</div>
+          <div class="meter"><i id="micMeter"></i></div>
+          <div class="micbtns">
+            <button id="micListen">🔊 گوش دادن زنده</button>
+            <button id="micRec">⏺ ضبط صدا</button>
+          </div>
+          <div class="mictime hidden" id="micTime">REC 00:00:00</div>
+          <p class="mute" style="margin-top:14px;font-size:13px;color:var(--mute)">گوش دادن و ضبط مستقل‌اند: می‌توانید فقط ضبط کنید بدون اینکه صدایی از کامپیوتر پخش شود.</p>
+          <div class="recopts">
+            <label>ذخیره‌ی خودکار هر <select id="micSeg"><option value="10">۱۰ دقیقه</option><option value="30" selected>۳۰ دقیقه</option><option value="60">۶۰ دقیقه</option><option value="0">فقط در پایان</option></select></label>
+            <span id="micSaved"></span>
+          </div>
         </div>
       </div>
     </section>
@@ -617,6 +656,8 @@ function setTab(t) {
   $('#callsView').classList.toggle('hidden', t !== 'calls');
   $('#filesView').classList.toggle('hidden', t !== 'files');
   $('#camView').classList.toggle('hidden', t !== 'cam');
+  $('#micView').classList.toggle('hidden', t !== 'mic');
+  if (t === 'mic') micMeterLoop();
   if (t === 'cam') camEnter(); else camLeave();
   if (t === 'files') { st.seenFiles = st.outCount; renderFilesBadge(); if (!st.mediaLoaded) loadMedia(); }
   document.body.classList.remove('show-conv');
@@ -1147,7 +1188,7 @@ function renderCam(c) {
   if (on && st.tab === 'cam' && (!st.camViewing || prev !== 'on')) camView();
   if (!on && st.camViewing && (c.state === 'off' || c.state === 'error' || c.state === 'ready')) camUnview();
   if (rec.on && (c.state === 'off' || c.state === 'ready')) { recStop(); toast('دوربین خاموش شد؛ ضبط پایان یافت'); }
-  if (au.wantListen && (c.state === 'off' || c.state === 'ready' || c.state === 'error')) { au.wantListen = false; auUpdate(); }
+
   layoutCam();
   // در حالت انتظار سریع‌تر وضعیت را بپرس
   clearTimeout(camPollT);
@@ -1187,7 +1228,8 @@ $('#camSnap').onclick = () => { if (st.cam.state === 'on') location.href = '/api
 $('#camFull').onclick = () => { const s = $('#camStage'); if (document.fullscreenElement) document.exitFullscreen(); else if (s.requestFullscreen) s.requestFullscreen(); };
 
 /* ---------- صدای زنده‌ی گوشی ---------- */
-const au = {ctx: null, mix: null, listen: null, dest: null, ctl: null, running: false, next: 0, wantListen: false, wantRec: false, rate: 24000};
+const au = {ctx: null, mix: null, listen: null, dest: null, analyser: null, ctl: null, running: false, next: 0,
+  wantListen: false, wantRec: false, wantMicRec: false, rate: 24000, lastData: 0, msg: ''};
 function auInit() {
   if (au.ctx) return;
   au.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1196,13 +1238,28 @@ function auInit() {
   au.dest = au.ctx.createMediaStreamDestination();
   au.mix.connect(au.listen); au.listen.connect(au.ctx.destination);
   au.mix.connect(au.dest);
+  au.analyser = au.ctx.createAnalyser(); au.analyser.fftSize = 1024;
+  au.mix.connect(au.analyser);
 }
 function auUpdate() {
-  const need = au.wantListen || au.wantRec;
+  const need = au.wantListen || au.wantRec || au.wantMicRec;
   if (need) { auInit(); au.ctx.resume(); au.listen.gain.value = au.wantListen ? 1 : 0; if (!au.running) auLoop(); }
   else if (au.running) { au.running = false; if (au.ctl) au.ctl.abort(); }
   $('#camAudio').classList.toggle('on', au.wantListen);
   $('#camAudio').textContent = au.wantListen ? '🔊 صدا' : '🔇 صدا';
+  $('#micListen').classList.toggle('on', au.wantListen);
+  $('#micListen').textContent = au.wantListen ? '🔇 قطع صدا' : '🔊 گوش دادن زنده';
+  if (!need) { au.msg = ''; }
+  micStatus();
+}
+function micStatus() {
+  const need = au.wantListen || au.wantRec || au.wantMicRec;
+  let t;
+  if (!need) t = 'خاموش';
+  else if (au.msg) t = au.msg;
+  else if (Date.now() - au.lastData < 2000) t = '<span class="okline">● در حال دریافت صدا</span>' + (au.wantListen ? ' — پخش روی بلندگو' : ' — بدون پخش');
+  else t = 'در حال اتصال به میکروفون…';
+  $('#micStat').innerHTML = t;
 }
 async function auLoop() {
   au.running = true;
@@ -1211,14 +1268,20 @@ async function auLoop() {
       au.ctl = new AbortController();
       const r = await fetch('/api/cam/audio?t=' + Date.now(), {signal: au.ctl.signal, cache: 'no-store'});
       if (!r.ok) {
-        let msg = 'صدا در دسترس نیست'; try { msg = (await r.json()).error || msg; } catch (e) {}
-        toast(msg); au.wantListen = false; au.wantRec = false; au.running = false; auUpdate(); return;
+        let j = {}; try { j = await r.json(); } catch (e) {}
+        if (j.waiting) { au.msg = '📱 ' + esc(j.error); micStatus(); await new Promise(res => setTimeout(res, 2000)); continue; }
+        toast(j.error || 'صدا در دسترس نیست');
+        au.msg = '⚠️ ' + esc(j.error || 'صدا در دسترس نیست');
+        if (mrec.on) micRecStop();
+        au.wantListen = false; au.wantRec = false; au.wantMicRec = false; au.running = false; auUpdate(); return;
       }
+      au.msg = '';
       au.rate = Number(r.headers.get('X-Sample-Rate')) || 24000;
       const rd = r.body.getReader(); let carry = null;
       au.next = 0;
       while (au.running) {
         const {value, done} = await rd.read(); if (done) break;
+        au.lastData = Date.now();
         let bytes = value;
         if (carry) { const b = new Uint8Array(carry.length + bytes.length); b.set(carry); b.set(bytes, carry.length); bytes = b; carry = null; }
         if (bytes.length % 2) { carry = bytes.slice(bytes.length - 1); bytes = bytes.subarray(0, bytes.length - 1); }
@@ -1235,10 +1298,75 @@ async function auLoop() {
     if (au.running) await new Promise(res => setTimeout(res, 2000));
   }
 }
-$('#camAudio').onclick = () => {
-  if (!au.wantListen && st.cam.state !== 'on') { toast('اول دوربین را روشن کنید'); return; }
-  au.wantListen = !au.wantListen; auUpdate();
-};
+$('#camAudio').onclick = () => { au.wantListen = !au.wantListen; auUpdate(); };
+$('#micListen').onclick = () => { au.wantListen = !au.wantListen; auUpdate(); };
+
+/* ضبط فقط صدا */
+const mrec = {on: false, mr: null, start: 0, segStart: 0, saved: 0, mime: '', timer: null};
+function micMime() {
+  if (!window.MediaRecorder) return null;
+  for (const m of ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm']) if (MediaRecorder.isTypeSupported(m)) return m;
+  return null;
+}
+function micNewSeg() {
+  const chunks = [], segStart = Date.now();
+  const mr = new MediaRecorder(au.dest.stream, {mimeType: mrec.mime, audioBitsPerSecond: 64000});
+  mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  mr.onstop = () => {
+    if (!chunks.length) return;
+    const ext = mrec.mime.includes('mp4') ? 'm4a' : mrec.mime.includes('ogg') ? 'ogg' : 'webm';
+    const d = new Date(segStart);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, {type: mrec.mime.split(';')[0]}));
+    a.download = `PayamBin-mic-${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}_${pad2(d.getHours())}-${pad2(d.getMinutes())}-${pad2(d.getSeconds())}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    mrec.saved++; $('#micSaved').textContent = faNum(mrec.saved) + ' فایل در Downloads ذخیره شد';
+  };
+  mr.start(1000);
+  mrec.mr = mr; mrec.segStart = segStart;
+}
+function micTick() {
+  const s = Math.floor((Date.now() - mrec.start) / 1000);
+  $('#micTime').textContent = `REC ${pad2(Math.floor(s / 3600))}:${pad2(Math.floor(s / 60) % 60)}:${pad2(s % 60)}`;
+  const seg = Number($('#micSeg').value);
+  if (seg && Date.now() - mrec.segStart >= seg * 60000) { mrec.mr.stop(); micNewSeg(); }
+  micStatus();
+}
+function micRecStart() {
+  mrec.mime = micMime();
+  if (!mrec.mime) { toast('این مرورگر ضبط صدا را پشتیبانی نمی‌کند'); return; }
+  au.wantMicRec = true; auUpdate();
+  mrec.on = true; mrec.start = Date.now(); mrec.saved = 0; $('#micSaved').textContent = '';
+  micNewSeg();
+  mrec.timer = setInterval(micTick, 1000); micTick();
+  $('#micRec').classList.add('on'); $('#micRec').textContent = '⏹ پایان ضبط';
+  $('#micTime').classList.remove('hidden'); $('#micDot').classList.remove('hidden');
+}
+function micRecStop() {
+  mrec.on = false; clearInterval(mrec.timer);
+  if (mrec.mr && mrec.mr.state !== 'inactive') mrec.mr.stop();
+  mrec.mr = null;
+  au.wantMicRec = false; auUpdate();
+  $('#micRec').classList.remove('on'); $('#micRec').textContent = '⏺ ضبط صدا';
+  $('#micTime').classList.add('hidden'); $('#micDot').classList.add('hidden');
+}
+$('#micRec').onclick = () => mrec.on ? micRecStop() : micRecStart();
+window.addEventListener('beforeunload', e => { if (mrec.on) { mrec.mr && mrec.mr.stop(); e.preventDefault(); e.returnValue = ''; } });
+
+/* نشانگر بلندی صدا */
+function micMeterLoop() {
+  if (st.tab !== 'mic') return;
+  let lvl = 0;
+  if (au.analyser && (au.wantListen || au.wantRec || au.wantMicRec)) {
+    const a = new Float32Array(au.analyser.fftSize); au.analyser.getFloatTimeDomainData(a);
+    let sum = 0; for (const v of a) sum += v * v;
+    lvl = Math.min(1, Math.sqrt(sum / a.length) * 4);
+  }
+  $('#micMeter').style.width = (lvl * 100) + '%';
+  requestAnimationFrame(micMeterLoop);
+}
+setInterval(() => { if (st.tab === 'mic') micStatus(); }, 1000);
 
 /* ---------- ضبط دوربین روی کامپیوتر ---------- */
 const fStamp = new Intl.DateTimeFormat(L, {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'});

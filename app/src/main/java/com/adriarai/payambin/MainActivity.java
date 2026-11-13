@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
+    public static volatile boolean visible = false;
 
     // ---------------- تم ----------------
     private boolean dark;
@@ -295,6 +296,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        visible = true;
         handler.post(tick);
         CameraService.ensureStandby(this); // برنامه جلوی چشم است → دوربین بعداً بدون تأیید روشن می‌شود
     }
@@ -302,6 +304,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        visible = false;
         handler.removeCallbacks(tick);
     }
 

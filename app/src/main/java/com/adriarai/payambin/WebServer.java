@@ -503,6 +503,11 @@ public class WebServer {
 
             case "/api/cam/audio": {
                 String err = CameraService.audioStart(ctx);
+                if ("WAIT".equals(err)) {
+                    Res w = Res.json(J.obj("error", "روی گوشی اعلان «🎙 کامپیوتر می‌خواهد صدای گوشی را بشنود» را لمس کنید", "waiting", true));
+                    w.status = 409;
+                    return w;
+                }
                 if (err != null) return Res.err(409, err);
                 Res res = new Res();
                 res.type = "application/octet-stream";
@@ -511,13 +516,14 @@ public class WebServer {
                     CameraService.audioViewers.incrementAndGet();
                     try {
                         long next = CameraService.aseq;
+                        long started = System.currentTimeMillis();
                         while (true) {
                             synchronized (CameraService.ALOCK) {
                                 if (CameraService.aseq == next) CameraService.ALOCK.wait(1500);
                             }
                             long end = CameraService.aseq;
                             if (end == next) {
-                                if (!"on".equals(CameraService.audioState)) break;
+                                if (!"on".equals(CameraService.audioState) && System.currentTimeMillis() - started > 5000) break;
                                 continue;
                             }
                             if (end - next > CameraService.RING - 4) next = end - 8; // عقب افتادیم → پرش
