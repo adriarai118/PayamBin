@@ -320,6 +320,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
           <button id="camFacing" title="دوربین جلو/عقب">🔄 دوربین جلو</button>
           <button id="camTorch" class="hidden" title="چراغ‌قوه">🔦 چراغ‌قوه</button>
           <select id="camQuality" title="کیفیت"><option value="low">کیفیت کم (سریع)</option><option value="mid" selected>کیفیت متوسط</option><option value="high">کیفیت بالا</option></select>
+          <select id="camFps" title="فریم در ثانیه"><option value="10">۱۰ فریم</option><option value="15">۱۵ فریم</option><option value="24" selected>۲۴ فریم</option><option value="30">۳۰ فریم</option></select>
           <button id="camRotate" title="چرخاندن">↻ چرخش</button>
           <button id="camSnap" title="ذخیره‌ی عکس">📸 عکس</button>
           <button id="camFull" title="تمام‌صفحه">⛶ تمام‌صفحه</button>
@@ -1116,7 +1117,8 @@ function renderCam(c) {
   $('#camMsg').classList.toggle('hidden', on && st.camViewing && $('#camImg').naturalWidth > 0);
   $('#camLive').classList.toggle('hidden', !on);
   $('#camInfo').classList.toggle('hidden', !on);
-  $('#camInfo').textContent = on ? `${c.width}×${c.height} · ${c.facing === 'front' ? 'front' : 'back'}` : '';
+  $('#camInfo').textContent = on ? `${c.width}×${c.height} · ${c.actualFps || 0} fps · ${c.facing === 'front' ? 'front' : 'back'}` : '';
+  if (c.fps) $('#camFps').value = String(c.fps);
   $('#camStart').textContent = c.state === 'off' || c.state === 'error' ? '▶ روشن کردن دوربین' : '⏹ خاموش کردن دوربین';
   $('#camStart').classList.toggle('pri', c.state === 'off' || c.state === 'error');
   $('#camFacing').textContent = c.facing === 'front' ? '🔄 دوربین عقب' : '🔄 دوربین جلو';
@@ -1153,10 +1155,11 @@ window.addEventListener('resize', layoutCam);
 document.addEventListener('fullscreenchange', () => setTimeout(layoutCam, 50));
 $('#camStart').onclick = () => {
   const off = st.cam.state === 'off' || st.cam.state === 'error';
-  camCmd(off ? {action: 'start', facing: st.cam.facing || 'back', quality: $('#camQuality').value} : {action: 'stop'});
+  camCmd(off ? {action: 'start', facing: st.cam.facing || 'back', quality: $('#camQuality').value, fps: Number($('#camFps').value)} : {action: 'stop'});
 };
 $('#camFacing').onclick = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', facing: st.cam.facing === 'front' ? 'back' : 'front'});
 $('#camQuality').onchange = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', quality: $('#camQuality').value});
+$('#camFps').onchange = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', fps: Number($('#camFps').value)});
 $('#camTorch').onclick = () => camCmd({action: 'torch', on: !st.cam.torch});
 $('#camRotate').onclick = () => { st.camRot = (st.camRot + 90) % 360; lsSet('pb_camrot', st.camRot); layoutCam(); };
 $('#camSnap').onclick = () => { if (st.cam.state === 'on') location.href = '/api/cam/snap'; else toast('دوربین روشن نیست'); };

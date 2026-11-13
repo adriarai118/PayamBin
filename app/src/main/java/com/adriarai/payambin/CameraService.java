@@ -48,6 +48,8 @@ public class CameraService extends Service {
     public static volatile String facing = "back";
     public static volatile String quality = "mid";   // low | mid | high
     public static volatile boolean torch = false;
+    public static volatile int targetFps = 24;
+    public static volatile double actualFps = 0;
     public static volatile boolean hasFlash = false;
     public static volatile int orientation = 90;
     public static volatile int width = 0, height = 0;
@@ -65,6 +67,11 @@ public class CameraService extends Service {
     private ImageReader reader;
     private CaptureRequest.Builder builder;
     private long lastFrame = 0;
+    private final java.util.concurrent.ExecutorService encoder = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final java.util.concurrent.atomic.AtomicBoolean encoding = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private int fpsCount = 0;
+    private long fpsStart = 0;
+    private android.util.Range<Integer> aeRange;
     private boolean fromTap = false;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable idleCheck = new Runnable() {
@@ -118,6 +125,7 @@ public class CameraService extends Service {
 
     public static JSONObject status() {
         return J.obj("state", state, "error", error, "facing", facing, "quality", quality, "torch", torch,
+                "fps", targetFps, "actualFps", Math.round(actualFps * 10) / 10.0,
                 "hasFlash", hasFlash, "orientation", orientation, "width", width, "height", height,
                 "viewers", viewers.get());
     }
@@ -219,9 +227,11 @@ public class CameraService extends Service {
                 thread.quitSafely();
             });
         }
+        encoder.shutdownNow();
         instance = null;
         state = "off";
         torch = false;
+        actualFps = 0;
         synchronized (LOCK) {
             frame = null;
             seq++;
@@ -295,11 +305,21 @@ public class CameraService extends Service {
             Boolean fl = ch.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
             hasFlash = fl != null && fl;
             if (!hasFlash) torch = false;
+            aeRange = null;
+            android.util.Range<Integer>[] ranges = ch.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+            if (ranges != null) {
+                // بالاترین حد پایین که از هدف بیشتر نشود، با حد بالای ≥ هدف
+                for (android.util.Range<Integer> r : ranges) {
+                    if (r.getUpper() < Math.min(targetFps, 30) || r.getLower() > targetFps) continue;
+                    if (aeRange == null || r.getLower() > aeRange.getLower()
+                            || (r.getLower().equals(aeRange.getLower()) && r.getUpper() < aeRange.getUpper())) aeRange = r;
+                }
+            }
             StreamConfigurationMap map = ch.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size size = pickSize(map);
             width = size.getWidth();
             height = size.getHeight();
-            reader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 3);
+            reader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 4);
             reader.setOnImageAvailableListener(this::onImage, camHandler);
             cm.openCamera(id, new CameraDevice.StateCallback() {
                 @Override
@@ -372,6 +392,7 @@ public class CameraService extends Service {
             builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
             builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+            if (aeRange != null) builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, aeRange);
             builder.set(CaptureRequest.FLASH_MODE, torch && hasFlash ? CaptureRequest.FLASH_MODE_TORCH : CaptureRequest.FLASH_MODE_OFF);
             session.setRepeatingRequest(builder.build(), null, camHandler);
         } catch (Exception e) {
@@ -385,19 +406,40 @@ public class CameraService extends Service {
             im = r.acquireLatestImage();
             if (im == null) return;
             long now = System.currentTimeMillis();
-            int interval = quality.equals("high") ? 120 : 70; // حدود ۸ تا ۱۴ فریم در ثانیه
-            if (viewers.get() == 0 || now - lastFrame < interval) return;
+            int interval = 1000 / Math.max(5, Math.min(30, targetFps));
+            if (viewers.get() == 0 || now - lastFrame < interval - 4) return;
+            if (!encoding.compareAndSet(false, true)) return; // رمزگذار مشغول است → این فریم رد شود
             lastFrame = now;
-            byte[] nv21 = toNv21(im);
-            YuvImage yuv = new YuvImage(nv21, ImageFormat.NV21, im.getWidth(), im.getHeight(), null);
-            ByteArrayOutputStream bo = new ByteArrayOutputStream();
-            yuv.compressToJpeg(new Rect(0, 0, im.getWidth(), im.getHeight()), quality.equals("low") ? 55 : 70, bo);
-            synchronized (LOCK) {
-                frame = bo.toByteArray();
-                seq++;
-                LOCK.notifyAll();
-            }
+            final int w = im.getWidth(), h = im.getHeight();
+            final byte[] nv21 = toNv21(im); // باید قبل از بستن Image کپی شود
+            im.close();
+            im = null;
+            final int q = quality.equals("low") ? 50 : quality.equals("high") ? 75 : 65;
+            encoder.execute(() -> {
+                try {
+                    YuvImage yuv = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
+                    ByteArrayOutputStream bo = new ByteArrayOutputStream(w * h / 6);
+                    yuv.compressToJpeg(new Rect(0, 0, w, h), q, bo);
+                    synchronized (LOCK) {
+                        frame = bo.toByteArray();
+                        seq++;
+                        LOCK.notifyAll();
+                    }
+                    long t = System.currentTimeMillis();
+                    if (fpsStart == 0) fpsStart = t;
+                    fpsCount++;
+                    if (t - fpsStart >= 1000) {
+                        actualFps = fpsCount * 1000.0 / (t - fpsStart);
+                        fpsCount = 0;
+                        fpsStart = t;
+                    }
+                } catch (Exception ignored) {
+                } finally {
+                    encoding.set(false);
+                }
+            });
         } catch (Exception ignored) {
+            encoding.set(false);
         } finally {
             if (im != null) im.close();
         }
@@ -405,30 +447,11 @@ public class CameraService extends Service {
 
     /** YUV_420_888 → NV21 با در نظر گرفتن row/pixel stride */
     static byte[] toNv21(Image img) {
-        int w = img.getWidth(), h = img.getHeight();
-        byte[] out = new byte[w * h * 3 / 2];
         Image.Plane[] p = img.getPlanes();
-        ByteBuffer y = p[0].getBuffer();
-        int yRow = p[0].getRowStride(), pos = 0;
-        if (yRow == w && p[0].getPixelStride() == 1) {
-            y.get(out, 0, w * h);
-            pos = w * h;
-        } else {
-            for (int r = 0; r < h; r++) {
-                y.position(r * yRow);
-                y.get(out, pos, w);
-                pos += w;
-            }
-        }
-        ByteBuffer u = p[1].getBuffer(), v = p[2].getBuffer();
-        int uRow = p[1].getRowStride(), uPix = p[1].getPixelStride();
-        int vRow = p[2].getRowStride(), vPix = p[2].getPixelStride();
-        for (int r = 0; r < h / 2; r++) {
-            for (int c = 0; c < w / 2; c++) {
-                out[pos++] = v.get(r * vRow + c * vPix);
-                out[pos++] = u.get(r * uRow + c * uPix);
-            }
-        }
-        return out;
+        return Yuv.toNv21(img.getWidth(), img.getHeight(),
+                p[0].getBuffer(), p[0].getRowStride(), p[0].getPixelStride(),
+                p[1].getBuffer(), p[1].getRowStride(), p[1].getPixelStride(),
+                p[2].getBuffer(), p[2].getRowStride(), p[2].getPixelStride());
     }
+
 }
