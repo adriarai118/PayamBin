@@ -197,7 +197,6 @@ main{flex:1;min-height:0;display:flex}
 .scrside small{color:var(--mute);line-height:1.8}
 .tapfx{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid #2dd4bf;pointer-events:none;animation:tapfx .45s ease-out forwards}
 @keyframes tapfx{from{transform:scale(.4);opacity:1}to{transform:scale(1.4);opacity:0}}
-.kbhint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#e2e8f0;font-size:12px;border-radius:8px;padding:3px 10px;pointer-events:none}
 @media (max-width:900px){ .scrwrap{flex-direction:column} .scrside{width:auto;flex-direction:row;flex-wrap:wrap} .scrside button,.scrside select{width:auto} }
 
 /* میکروفون */
@@ -384,7 +383,6 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
         <div class="scrstage" id="scrStage" tabindex="0">
           <img id="scrImg" alt="" draggable="false">
           <div class="msg" id="scrMsg">صفحه‌ی گوشی به اشتراک گذاشته نشده</div>
-          <span class="kbhint hidden" id="scrKb">⌨️ کیبورد فعال است — هر چه تایپ کنید در گوشی نوشته می‌شود</span>
         </div>
         <div class="scrside">
           <button class="pri" id="scrStart">▶ شروع</button>
@@ -1652,8 +1650,6 @@ $('#scrImg').addEventListener('wheel', e => {
 // کیبورد
 let typeBuf = '', typeT = null;
 function flushType() { if (typeBuf) { const t = typeBuf; typeBuf = ''; sendInput({type: 'text', text: t}); } typeT = null; }
-$('#scrStage').addEventListener('focus', () => { if (st.scr.state === 'on') $('#scrKb').classList.remove('hidden'); });
-$('#scrStage').addEventListener('blur', () => $('#scrKb').classList.add('hidden'));
 $('#scrStage').addEventListener('keydown', e => {
   if (e.isComposing) return;
   const k = e.key;
