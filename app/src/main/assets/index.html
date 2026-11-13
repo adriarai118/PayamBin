@@ -160,6 +160,18 @@ main{flex:1;min-height:0;display:flex}
 .tile .dl{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:8px;padding:3px 7px;font-size:12px;opacity:0;transition:.15s}
 .tile:hover .dl{opacity:1}
 
+/* دوربین */
+.camwrap{flex:1;display:flex;flex-direction:column;min-height:0;padding:12px 16px;gap:10px}
+.camstage{flex:1;min-height:0;background:#000;border-radius:14px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.camstage img{transition:transform .2s;display:block}
+.camstage .msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#cbd5e1;text-align:center;padding:30px;line-height:2;font-size:15px}
+.camstage .live{position:absolute;top:12px;right:12px;background:#dc2626;color:#fff;font-size:12px;border-radius:6px;padding:2px 8px;font-weight:700}
+.camstage .info{position:absolute;bottom:10px;left:12px;color:#e2e8f0;font-size:12px;background:rgba(0,0,0,.45);border-radius:6px;padding:2px 8px;direction:ltr}
+.cambar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center}
+.cambar select{padding:7px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.cambar button.on{background:#f59e0b;border-color:#f59e0b;color:#111}
+.camstage:fullscreen{border-radius:0}
+
 /* کلیپ‌بورد */
 .clipbox textarea{width:100%;min-height:90px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--soft);resize:vertical;font:inherit}
 .citem{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;display:flex;gap:8px;align-items:flex-start}
@@ -224,6 +236,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
       <button class="tab" data-tab="notif">اعلان‌ها <span class="badge hidden" id="notifBadge"></span></button>
       <button class="tab" data-tab="calls">تماس‌ها <span class="badge hidden" id="callsBadge"></span></button>
       <button class="tab" data-tab="files">فایل‌ها <span class="badge hidden" id="filesBadge"></span></button>
+      <button class="tab" data-tab="cam">دوربین</button>
     </div>
     <div class="spacer"></div>
     <div class="otp hidden" id="otpChip" title="آخرین کد تأیید — برای کپی کلیک کنید"><small>کد</small><b id="otpCode"></b><small id="otpFrom"></small></div>
@@ -291,6 +304,25 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
         <div class="fsec">
           <h3>🖼 عکس‌ها و ویدیوهای اخیر گوشی <span class="sp"></span><button id="mediaRefresh">تازه کردن</button></h3>
           <div id="media"></div>
+        </div>
+      </div>
+    </section>
+    <section class="view hidden" id="camView">
+      <div class="camwrap">
+        <div class="camstage" id="camStage">
+          <img id="camImg" alt="">
+          <div class="msg" id="camMsg">دوربین خاموش است</div>
+          <span class="live hidden" id="camLive">● زنده</span>
+          <span class="info hidden" id="camInfo"></span>
+        </div>
+        <div class="cambar">
+          <button class="pri" id="camStart">▶ روشن کردن دوربین</button>
+          <button id="camFacing" title="دوربین جلو/عقب">🔄 دوربین جلو</button>
+          <button id="camTorch" class="hidden" title="چراغ‌قوه">🔦 چراغ‌قوه</button>
+          <select id="camQuality" title="کیفیت"><option value="low">کیفیت کم (سریع)</option><option value="mid" selected>کیفیت متوسط</option><option value="high">کیفیت بالا</option></select>
+          <button id="camRotate" title="چرخاندن">↻ چرخش</button>
+          <button id="camSnap" title="ذخیره‌ی عکس">📸 عکس</button>
+          <button id="camFull" title="تمام‌صفحه">⛶ تمام‌صفحه</button>
         </div>
       </div>
     </section>
@@ -526,6 +558,7 @@ async function poll() {
     if (s.calls !== st.ver.calls) { st.ver.calls = s.calls; await refreshCalls(); }
     if (s.files !== st.ver.files) { st.ver.files = s.files; await refreshFiles(); }
     if (s.clip !== st.ver.clip) { st.ver.clip = s.clip; await refreshClip(); }
+    if (s.cam && (st.tab === 'cam' || s.cam.state !== st.cam.state)) renderCam(s.cam);
     $('#ringBtn').classList.toggle('on', !!s.ringing);
     $('#ringBtn').textContent = s.ringing ? '🔕 قطع زنگ' : '📳';
   } catch (e) {
@@ -565,6 +598,8 @@ function setTab(t) {
   $('#notifView').classList.toggle('hidden', t !== 'notif');
   $('#callsView').classList.toggle('hidden', t !== 'calls');
   $('#filesView').classList.toggle('hidden', t !== 'files');
+  $('#camView').classList.toggle('hidden', t !== 'cam');
+  if (t === 'cam') camEnter(); else camLeave();
   if (t === 'files') { st.seenFiles = st.outCount; renderFilesBadge(); if (!st.mediaLoaded) loadMedia(); }
   document.body.classList.remove('show-conv');
   if (t === 'notif') { st.seenNotif = maxNotifId(); renderNotifBadge(); }
@@ -1060,6 +1095,72 @@ $('#ringBtn').onclick = async () => {
     if (!on) toast('گوشی تا ۶۰ ثانیه زنگ می‌زند');
   } catch (e) {}
 };
+
+/* ---------- دوربین ---------- */
+st.cam = {state: 'off'}; st.camViewing = false; st.camRot = Number(lsGet('pb_camrot') || 0);
+let camPollT = null;
+function camStatusText(c) {
+  switch (c.state) {
+    case 'waiting_tap': return '📱 روی گوشی اعلان «📷 کامپیوتر می‌خواهد دوربین را ببیند» را لمس کنید<small style="display:block;opacity:.75;margin-top:6px">(اندروید اجازه نمی‌دهد دوربین بدون اجازه‌ی شما از پس‌زمینه روشن شود؛ بعد از آن تا وقتی قطع نکنید پخش ادامه دارد)</small>';
+    case 'starting': return 'در حال روشن کردن دوربین…';
+    case 'error': return '⚠️ ' + esc(c.error || 'خطا');
+    case 'on': return '';
+    default: return 'دوربین خاموش است';
+  }
+}
+function renderCam(c) {
+  if (!c) return;
+  const prev = st.cam.state; st.cam = c;
+  const on = c.state === 'on';
+  $('#camMsg').innerHTML = camStatusText(c);
+  $('#camMsg').classList.toggle('hidden', on && st.camViewing && $('#camImg').naturalWidth > 0);
+  $('#camLive').classList.toggle('hidden', !on);
+  $('#camInfo').classList.toggle('hidden', !on);
+  $('#camInfo').textContent = on ? `${c.width}×${c.height} · ${c.facing === 'front' ? 'front' : 'back'}` : '';
+  $('#camStart').textContent = c.state === 'off' || c.state === 'error' ? '▶ روشن کردن دوربین' : '⏹ خاموش کردن دوربین';
+  $('#camStart').classList.toggle('pri', c.state === 'off' || c.state === 'error');
+  $('#camFacing').textContent = c.facing === 'front' ? '🔄 دوربین عقب' : '🔄 دوربین جلو';
+  $('#camTorch').classList.toggle('hidden', !(on && c.hasFlash));
+  $('#camTorch').classList.toggle('on', !!c.torch);
+  $('#camQuality').value = c.quality || 'mid';
+  if (on && st.tab === 'cam' && (!st.camViewing || prev !== 'on')) camView();
+  if (!on && st.camViewing && (c.state === 'off' || c.state === 'error')) camUnview();
+  layoutCam();
+  // در حالت انتظار سریع‌تر وضعیت را بپرس
+  clearTimeout(camPollT);
+  if (st.tab === 'cam' && (c.state === 'starting' || c.state === 'waiting_tap')) camPollT = setTimeout(camPoll, 1000);
+}
+async function camPoll() { try { renderCam(await api('/api/cam')); } catch (e) {} }
+async function camCmd(body) { try { renderCam(await api('/api/cam', {method: 'POST', body: JSON.stringify(body)})); } catch (e) {} }
+function camView() {
+  st.camViewing = true;
+  $('#camImg').src = '/api/cam/stream?t=' + Date.now();
+}
+function camUnview() { st.camViewing = false; $('#camImg').removeAttribute('src'); }
+function camEnter() { camPoll(); }
+function camLeave() { clearTimeout(camPollT); if (st.camViewing) camUnview(); }
+$('#camImg').onload = () => { $('#camMsg').classList.add('hidden'); layoutCam(); };
+$('#camImg').onerror = () => { if (st.camViewing && st.cam.state === 'on' && st.tab === 'cam') setTimeout(() => { if (st.camViewing) camView(); }, 1500); };
+function camRotation() { return ((st.cam.orientation || 0) + st.camRot) % 360; }
+function layoutCam() {
+  const img = $('#camImg'), stage = $('#camStage');
+  const rot = camRotation(), sw = stage.clientWidth, sh = stage.clientHeight, side = rot % 180 === 90;
+  img.style.maxWidth = (side ? sh : sw) + 'px';
+  img.style.maxHeight = (side ? sw : sh) + 'px';
+  img.style.transform = `rotate(${rot}deg)` + (st.cam.facing === 'front' ? (side ? ' scaleY(-1)' : ' scaleX(-1)') : '');
+}
+window.addEventListener('resize', layoutCam);
+document.addEventListener('fullscreenchange', () => setTimeout(layoutCam, 50));
+$('#camStart').onclick = () => {
+  const off = st.cam.state === 'off' || st.cam.state === 'error';
+  camCmd(off ? {action: 'start', facing: st.cam.facing || 'back', quality: $('#camQuality').value} : {action: 'stop'});
+};
+$('#camFacing').onclick = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', facing: st.cam.facing === 'front' ? 'back' : 'front'});
+$('#camQuality').onchange = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', quality: $('#camQuality').value});
+$('#camTorch').onclick = () => camCmd({action: 'torch', on: !st.cam.torch});
+$('#camRotate').onclick = () => { st.camRot = (st.camRot + 90) % 360; lsSet('pb_camrot', st.camRot); layoutCam(); };
+$('#camSnap').onclick = () => { if (st.cam.state === 'on') location.href = '/api/cam/snap'; else toast('دوربین روشن نیست'); };
+$('#camFull').onclick = () => { const s = $('#camStage'); if (document.fullscreenElement) document.exitFullscreen(); else if (s.requestFullscreen) s.requestFullscreen(); };
 
 /* ---------- واتس‌اپ وب برای یک شماره ---------- */
 function waLink(num) {

@@ -513,6 +513,7 @@ public class MainActivity extends Activity {
         final TextView[] cont = statusRow(k, "نمایش نام مخاطبین", "اجازه", v -> askPerms());
         final TextView[] calls = statusRow(k, "نمایش تماس‌ها", "اجازه", v -> askPerms());
         final TextView[] media = statusRow(k, "عکس‌ها و ویدیوها (برای کامپیوتر)", "اجازه", v -> askPerms());
+        final TextView[] cam = statusRow(k, "دوربین (پخش زنده برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] notif = statusRow(k, "اعلان پیام‌رسان‌ها (بله، تلگرام، …)", "فعال‌سازی", v -> {
             try {
                 startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -550,6 +551,7 @@ public class MainActivity extends Activity {
             setMark(cont, SmsRepo.has(this, Manifest.permission.READ_CONTACTS));
             setMark(calls, SmsRepo.has(this, Manifest.permission.READ_CALL_LOG));
             setMark(media, MediaRepo.allowed(this));
+            setMark(cam, SmsRepo.has(this, Manifest.permission.CAMERA));
             setMark(notif, NotifListener.isEnabled(this));
             setMark(bat, SmsRepo.ignoringBattery(this));
             setMark(inst, Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls());
@@ -784,6 +786,7 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.READ_CONTACTS);
         p.add(Manifest.permission.READ_PHONE_STATE);
         p.add(Manifest.permission.READ_CALL_LOG);
+        p.add(Manifest.permission.CAMERA);
         if (Build.VERSION.SDK_INT >= 33) {
             p.add(Manifest.permission.POST_NOTIFICATIONS);
             p.add(Manifest.permission.READ_MEDIA_IMAGES);

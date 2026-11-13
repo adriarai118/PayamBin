@@ -47,7 +47,7 @@ public class WebServer {
         serverSocket = new ServerSocket();
         serverSocket.setReuseAddress(true);
         serverSocket.bind(new InetSocketAddress(port));
-        pool = Executors.newFixedThreadPool(12);
+        pool = Executors.newCachedThreadPool(); // پخش زنده‌ی دوربین اتصال‌های طولانی دارد
         running = true;
         Thread t = new Thread(this::acceptLoop, "payambin-http");
         t.setDaemon(true);
@@ -115,11 +115,16 @@ public class WebServer {
         }
     }
 
+    interface StreamWriter {
+        void write(OutputStream out) throws Exception;
+    }
+
     static class Res {
         int status = 200;
         String type = "application/json; charset=utf-8";
         byte[] body = new byte[0];
         InputStream stream;     // برای فایل‌های بزرگ
+        StreamWriter writer;    // برای پخش زنده
         long length = -1;
         final List<String> headers = new ArrayList<>();
 
@@ -267,7 +272,8 @@ public class WebServer {
         StringBuilder sb = new StringBuilder();
         sb.append("HTTP/1.1 ").append(r.status).append(' ').append(statusText(r.status)).append("\r\n");
         sb.append("Content-Type: ").append(r.type).append("\r\n");
-        if (r.stream == null) sb.append("Content-Length: ").append(r.body.length).append("\r\n");
+        if (r.writer != null) { /* بدون طول */ }
+        else if (r.stream == null) sb.append("Content-Length: ").append(r.body.length).append("\r\n");
         else if (r.length >= 0) sb.append("Content-Length: ").append(r.length).append("\r\n");
         sb.append("Cache-Control: no-store\r\n");
         sb.append("X-Content-Type-Options: nosniff\r\n");
@@ -275,7 +281,13 @@ public class WebServer {
         for (String h : r.headers) sb.append(h).append("\r\n");
         sb.append("\r\n");
         out.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        if (r.stream != null) {
+        if (r.writer != null) {
+            out.flush();
+            try {
+                r.writer.write(out);
+            } catch (Exception ignored) {
+            }
+        } else if (r.stream != null) {
             try (InputStream in = r.stream) {
                 FileStore.copy(in, out, -1);
             }
@@ -357,6 +369,7 @@ public class WebServer {
                         "clip", NotifStore.Versions.clip.get(),
                         "ringing", Ringer.ringing,
                         "proxy", proxyInfo(r.ip),
+                        "cam", CameraService.status(),
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -463,6 +476,60 @@ public class WebServer {
                     }
                 }
                 return Res.json(proxyInfo(r.ip));
+
+            case "/api/cam":
+                if (r.method.equals("POST")) {
+                    JSONObject b = r.json();
+                    String act = b.optString("action");
+                    if (b.has("facing")) CameraService.facing = "front".equals(b.optString("facing")) ? "front" : "back";
+                    if (b.has("quality")) {
+                        String q = b.optString("quality");
+                        CameraService.quality = q.equals("low") || q.equals("high") ? q : "mid";
+                    }
+                    if (act.equals("start") || act.equals("reconfig")) CameraService.request(ctx);
+                    else if (act.equals("stop")) CameraService.stop(ctx);
+                    else if (act.equals("torch")) CameraService.setTorch(b.optBoolean("on"));
+                }
+                return Res.json(CameraService.status());
+
+            case "/api/cam/snap": {
+                byte[] f = CameraService.frame;
+                if (f == null) return Res.err(404, "no frame");
+                Res res = Res.file(new java.io.ByteArrayInputStream(f), f.length, "image/jpeg",
+                        "PayamBin-" + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new java.util.Date()) + ".jpg", true);
+                return res;
+            }
+
+            case "/api/cam/stream": {
+                Res res = new Res();
+                res.type = "multipart/x-mixed-replace; boundary=pbframe";
+                res.writer = out -> {
+                    CameraService.viewers.incrementAndGet();
+                    try {
+                        long last = -1;
+                        while (true) {
+                            byte[] f;
+                            long s;
+                            synchronized (CameraService.LOCK) {
+                                if (CameraService.seq == last) CameraService.LOCK.wait(2000);
+                                f = CameraService.frame;
+                                s = CameraService.seq;
+                            }
+                            if (CameraService.state.equals("off") || CameraService.state.equals("error")) break;
+                            if (f == null || s == last) continue;
+                            last = s;
+                            out.write(("--pbframe\r\nContent-Type: image/jpeg\r\nContent-Length: " + f.length + "\r\n\r\n")
+                                    .getBytes(StandardCharsets.ISO_8859_1));
+                            out.write(f);
+                            out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                            out.flush();
+                        }
+                    } finally {
+                        CameraService.viewers.decrementAndGet();
+                    }
+                };
+                return res;
+            }
 
             case "/api/handoff": {
                 java.util.List<String> ips = Net.localIps();
