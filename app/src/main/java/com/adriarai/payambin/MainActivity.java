@@ -652,6 +652,23 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "پاک شد؛ هر دستگاه باید دوباره وارد صفحه‌ی پیام‌بین شود", Toast.LENGTH_LONG).show();
         });
 
+        LinearLayout kr = card();
+        heading(kr, "🌍 دسترسی از اینترنت (سرور شخصی)");
+        para(kr, "به‌طور پیش‌فرض فقط شبکه‌ی داخلی. با روشن کردن این گزینه، پیام‌بین از طریق سرور واسطه‌ی خودتان (VPS) از هر جا در دسترس است.");
+        Switch rs = switchRow(kr, "روشن", Prefs.relayOn(this));
+        rs.setOnCheckedChangeListener((b, v) -> {
+            if (v && RelayClient.Setup.parse(Prefs.relayCode(this)) == null) {
+                Toast.makeText(this, "اول کد راه‌اندازی سرور را وارد کنید", Toast.LENGTH_LONG).show();
+                b.setChecked(false);
+                return;
+            }
+            ServerService.setRelay(this, v);
+        });
+        final TextView relayInfo = text(13, TEXT, false);
+        relayInfo.setPadding(0, dp(6), 0, 0);
+        kr.addView(relayInfo);
+        button(kr, "وارد کردن کد راه‌اندازی سرور", false, v -> askRelayCode());
+
         LinearLayout kcam = card();
         heading(kcam, "📷 دوربین");
         Switch sb = switchRow(kcam, "همیشه آماده (روشن شدن از کامپیوتر بدون تأیید روی گوشی)", Prefs.camStandby(this));
@@ -715,6 +732,9 @@ public class MainActivity extends Activity {
             } else {
                 pxInfo.setText(Prefs.proxyOn(this) ? "وضعیت: " + ProxyServer.status : "خاموش است");
             }
+            RelayClient.Setup rsu = RelayClient.Setup.parse(Prefs.relayCode(this));
+            relayInfo.setText((rsu == null ? "کد سرور وارد نشده" : "سرور: " + rsu.host + ":" + rsu.port)
+                    + "\nوضعیت: " + (Prefs.relayOn(this) ? RelayClient.status : "خاموش"));
             portBtn.setText("پورت: " + Prefs.port(this) + "  (تغییر)");
             pinTv.setText("رمز ورود فعلی: " + Prefs.pin(this));
             keyTv.setText("\nکلید API: " + Prefs.apiKey(this));
@@ -919,6 +939,33 @@ public class MainActivity extends Activity {
 
     private static String mb(long b) {
         return String.format(Locale.US, "%.1f MB", b / 1048576.0);
+    }
+
+    private void askRelayCode() {
+        final EditText et = new EditText(this);
+        et.setHint("pbrelay://…");
+        et.setText(Prefs.relayCode(this));
+        et.setTextColor(TEXT);
+        et.setTextSize(12);
+        et.setTextDirection(View.TEXT_DIRECTION_LTR);
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(dp(20), dp(8), dp(20), 0);
+        box.addView(et, new FrameLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT));
+        dialog().setTitle("کد راه‌اندازی (از خروجی سرور کپی کنید)")
+                .setView(box)
+                .setPositiveButton("ذخیره", (d, w) -> {
+                    String code = et.getText().toString().trim();
+                    if (RelayClient.Setup.parse(code) == null) {
+                        Toast.makeText(this, "کد نامعتبر است (باید با pbrelay:// شروع شود)", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    Prefs.setRelayCode(this, code);
+                    if (Prefs.relayOn(this)) RelayClient.restart(this);
+                    Toast.makeText(this, "ذخیره شد", Toast.LENGTH_SHORT).show();
+                    if (pageRefresh != null) pageRefresh.run();
+                })
+                .setNegativeButton("انصراف", null)
+                .show();
     }
 
     private void askCap() {

@@ -458,6 +458,9 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
     <h3>🌐 اشتراک اینترنت گوشی</h3>
     <div id="proxyHelp"></div>
 
+    <h3>🌍 دسترسی از اینترنت</h3>
+    <div id="relayHelp" class="mute"></div>
+
     <h3>🩺 گزارش عیب‌یابی</h3>
     <p class="mute">رویدادهای گوشی (خاموش/روشن شدن صفحه، حالت چرت، قطع وای‌فای، قطع دسترسی اعلان) با ساعت. <a href="/api/diag" target="_blank">نمایش گزارش</a></p>
 
@@ -1718,6 +1721,11 @@ async function renderSettings() {
     <p class="mute">با عوض شدن IP گوشی هم کار می‌کند. اگر باز نشد: ویندوز ۱۰/۱۱ لازم است، شبکهٔ وای‌فای/LAN در ویندوز باید <b>Private</b> باشد، و در این حالت از آدرس IP استفاده کنید: ${ips || '—'}</p>`;
 
   renderProxy();
+  try {
+    const rs = (await api('/api/state')).relay || {};
+    $('#relayHelp').innerHTML = (rs.remote ? '<p class="okline">الان از طریق اینترنت (سرور واسطه) وصل هستید.</p>' : '') +
+      `<p>وضعیت: ${rs.on ? esc(rs.status) : 'خاموش (فقط شبکه‌ی داخلی)'}</p><p class="mute">روشن/خاموش کردن و وارد کردن کد سرور: در برنامه‌ی گوشی ← ☰ ← تنظیمات ← «دسترسی از اینترنت».</p>`;
+  } catch (e) {}
 
   let key = '…';
   try { key = (await api('/api/apikey')).key; } catch (e) {}

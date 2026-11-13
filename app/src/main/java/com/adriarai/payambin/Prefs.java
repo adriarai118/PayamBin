@@ -162,6 +162,23 @@ public final class Prefs {
         sp(c).edit().putBoolean("screen_dim", v).apply();
     }
 
+    // ---------- دسترسی از اینترنت (سرور واسطه) ----------
+    public static boolean relayOn(Context c) {
+        return sp(c).getBoolean("relay_on", false);
+    }
+
+    public static void setRelayOn(Context c, boolean v) {
+        sp(c).edit().putBoolean("relay_on", v).apply();
+    }
+
+    public static String relayCode(Context c) {
+        return sp(c).getString("relay_code", "");
+    }
+
+    public static void setRelayCode(Context c, String v) {
+        sp(c).edit().putString("relay_code", v == null ? "" : v.trim()).apply();
+    }
+
     /** تم برنامه: system | light | dark */
     public static String theme(Context c) {
         return sp(c).getString("theme", "system");

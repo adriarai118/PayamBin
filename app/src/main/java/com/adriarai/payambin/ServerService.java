@@ -71,6 +71,13 @@ public class ServerService extends Service {
         c.stopService(new Intent(c, ServerService.class));
     }
 
+    /** روشن/خاموش کردن دسترسی از اینترنت */
+    public static void setRelay(Context c, boolean on) {
+        Prefs.setRelayOn(c, on);
+        if (on && running) RelayClient.restart(c);
+        else if (!on) RelayClient.stop();
+    }
+
     /** روشن/خاموش کردن اشتراک اینترنت */
     public static void setProxy(Context c, boolean on) {
         Prefs.setProxyOn(c, on);
@@ -204,6 +211,7 @@ public class ServerService extends Service {
             startMdns();
             registerDiag();
             if (Prefs.proxyOn(this)) ProxyServer.start(this);
+            if (Prefs.relayOn(this)) RelayClient.start(this);
             handler.postDelayed(refresher, 20_000);
         }
         return START_STICKY;
@@ -345,6 +353,7 @@ public class ServerService extends Service {
         }
         phoneReceiverOn = false;
         ProxyServer.stop();
+        RelayClient.stop();
         if (mdns != null) mdns.stop();
         mdns = null;
         try {

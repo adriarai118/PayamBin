@@ -352,8 +352,8 @@ public class WebServer {
         }
 
         String token = r.cookie("pb");
-        if (!Prefs.validToken(ctx, token)) return Res.err(401, "login required");
-        ProxyServer.allow(ctx, r.ip); // این دستگاه می‌تواند از اینترنت گوشی استفاده کند
+        if (!viaRelay(r) && !Prefs.validToken(ctx, token)) return Res.err(401, "login required");
+        if (!viaRelay(r)) ProxyServer.allow(ctx, r.ip); // این دستگاه می‌تواند از اینترنت گوشی استفاده کند
 
         switch (path) {
             case "/api/logout":
@@ -371,6 +371,7 @@ public class WebServer {
                         "proxy", proxyInfo(r.ip),
                         "cam", CameraService.status(),
                         "screen", ScreenService.status(),
+                        "relay", J.obj("on", Prefs.relayOn(ctx), "status", RelayClient.status, "remote", viaRelay(r)),
                         "perms", SmsRepo.perms(ctx),
                         "device", Build.MANUFACTURER + " " + Build.MODEL,
                         "battery", PhoneState.battery(ctx),
@@ -756,7 +757,7 @@ public class WebServer {
 
     /** POST /api/upload?name=...  (بدنه = خود فایل) */
     private Res upload(Req r, InputStream in, int len) throws Exception {
-        if (!Prefs.validToken(ctx, r.cookie("pb"))) return Res.err(401, "login required");
+        if (!viaRelay(r) && !Prefs.validToken(ctx, r.cookie("pb"))) return Res.err(401, "login required");
         // هدر سفارشی: جلوی ارسال از سایت‌های دیگر را می‌گیرد
         if (!"1".equals(r.headers.get("x-payambin"))) return Res.err(400, "bad request");
         if (len <= 0) return Res.err(400, "empty");
@@ -778,6 +779,15 @@ public class WebServer {
                 "today", ProxyServer.usage(),
                 "you", you,
                 "clients", new JSONArray(ProxyServer.allowedList(ctx)));
+    }
+
+    /** درخواست از سرور واسطه‌ی مجاز (کاربر آنجا با رمز قوی وارد شده) */
+    private boolean viaRelay(Req r) {
+        if (!r.ip.startsWith("127.") && !r.ip.equals("::1") && !r.ip.equals("0:0:0:0:0:0:0:1")) return false;
+        String k = r.headers.get("x-pb-relay");
+        if (k == null || !Prefs.relayOn(ctx)) return false;
+        RelayClient.Setup s = RelayClient.Setup.parse(Prefs.relayCode(ctx));
+        return s != null && java.security.MessageDigest.isEqual(k.getBytes(StandardCharsets.UTF_8), s.key.getBytes(StandardCharsets.UTF_8));
     }
 
     private String otpCacheKey = "";
