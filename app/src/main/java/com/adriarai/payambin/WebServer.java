@@ -501,6 +501,39 @@ public class WebServer {
                 return res;
             }
 
+            case "/api/cam/audio": {
+                String err = CameraService.audioStart(ctx);
+                if (err != null) return Res.err(409, err);
+                Res res = new Res();
+                res.type = "application/octet-stream";
+                res.headers.add("X-Sample-Rate: " + CameraService.RATE);
+                res.writer = out -> {
+                    CameraService.audioViewers.incrementAndGet();
+                    try {
+                        long next = CameraService.aseq;
+                        while (true) {
+                            synchronized (CameraService.ALOCK) {
+                                if (CameraService.aseq == next) CameraService.ALOCK.wait(1500);
+                            }
+                            long end = CameraService.aseq;
+                            if (end == next) {
+                                if (!"on".equals(CameraService.audioState)) break;
+                                continue;
+                            }
+                            if (end - next > CameraService.RING - 4) next = end - 8; // عقب افتادیم → پرش
+                            for (; next < end; next++) {
+                                byte[] b = CameraService.aring[(int) (next % CameraService.RING)];
+                                if (b != null) out.write(b);
+                            }
+                            out.flush();
+                        }
+                    } finally {
+                        CameraService.audioViewers.decrementAndGet();
+                    }
+                };
+                return res;
+            }
+
             case "/api/cam/stream": {
                 Res res = new Res();
                 res.type = "multipart/x-mixed-replace; boundary=pbframe";

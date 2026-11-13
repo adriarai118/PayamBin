@@ -515,6 +515,7 @@ public class MainActivity extends Activity {
         final TextView[] calls = statusRow(k, "نمایش تماس‌ها", "اجازه", v -> askPerms());
         final TextView[] media = statusRow(k, "عکس‌ها و ویدیوها (برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] cam = statusRow(k, "دوربین (پخش زنده برای کامپیوتر)", "اجازه", v -> askPerms());
+        final TextView[] mic = statusRow(k, "میکروفون (صدای زنده و ضبط با صدا)", "اجازه", v -> askPerms());
         final TextView[] notif = statusRow(k, "اعلان پیام‌رسان‌ها (بله، تلگرام، …)", "فعال‌سازی", v -> {
             try {
                 startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
@@ -553,6 +554,7 @@ public class MainActivity extends Activity {
             setMark(calls, SmsRepo.has(this, Manifest.permission.READ_CALL_LOG));
             setMark(media, MediaRepo.allowed(this));
             setMark(cam, SmsRepo.has(this, Manifest.permission.CAMERA));
+            setMark(mic, SmsRepo.has(this, Manifest.permission.RECORD_AUDIO));
             setMark(notif, NotifListener.isEnabled(this));
             setMark(bat, SmsRepo.ignoringBattery(this));
             setMark(inst, Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls());
@@ -798,6 +800,7 @@ public class MainActivity extends Activity {
         p.add(Manifest.permission.READ_PHONE_STATE);
         p.add(Manifest.permission.READ_CALL_LOG);
         p.add(Manifest.permission.CAMERA);
+        p.add(Manifest.permission.RECORD_AUDIO);
         if (Build.VERSION.SDK_INT >= 33) {
             p.add(Manifest.permission.POST_NOTIFICATIONS);
             p.add(Manifest.permission.READ_MEDIA_IMAGES);
@@ -812,6 +815,11 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (pageRefresh != null) pageRefresh.run();
+        // اگر میکروفون تازه اجازه گرفت، سرویس دوربین را از نو با نوع «میکروفون» آماده کن
+        if (SmsRepo.has(this, Manifest.permission.RECORD_AUDIO) && !"on".equals(CameraService.state)) {
+            CameraService.disable(this);
+            handler.postDelayed(() -> CameraService.ensureStandby(this), 800);
+        }
         if (!SmsRepo.has(this, Manifest.permission.READ_SMS)) {
             dialog().setMessage("مجوز پیامک داده نشد. اگر گزینه غیرفعال بود از تنظیمات برنامه ← منوی سه‌نقطه ← Allow restricted settings را بزنید و دوباره امتحان کنید.")
                     .setPositiveButton("تنظیمات برنامه", (d, w) -> openAppDetails())

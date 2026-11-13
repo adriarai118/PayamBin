@@ -61,6 +61,85 @@ public class CameraService extends Service {
     private static volatile long lastViewerTime = 0;
     private static CameraService instance;
 
+    // ---- صدا (میکروفون) ----
+    public static final int RATE = 24000;
+    public static final AtomicInteger audioViewers = new AtomicInteger();
+    public static final Object ALOCK = new Object();
+    public static final int RING = 64;
+    public static final byte[][] aring = new byte[RING][];
+    public static volatile long aseq = 0;
+    public static volatile String audioState = "off"; // off | on | error
+    private volatile Thread audioThread;
+    private volatile boolean audioRun;
+
+    /** شروع میکروفون برای یک شنونده؛ اگر ممکن نبود دلیلش را برمی‌گرداند */
+    public static String audioStart(Context c) {
+        CameraService s = instance;
+        if (s == null) return "دوربین روشن یا آماده نیست";
+        if (!SmsRepo.has(c, Manifest.permission.RECORD_AUDIO)) return "مجوز میکروفون روی گوشی داده نشده (برنامه ← مجوزها)";
+        s.ensureAudio();
+        return null;
+    }
+
+    private synchronized void ensureAudio() {
+        if (audioThread != null) return;
+        audioRun = true;
+        audioThread = new Thread(this::audioLoop, "payambin-mic");
+        audioThread.start();
+    }
+
+    @SuppressWarnings("MissingPermission")
+    private void audioLoop() {
+        android.media.AudioRecord ar = null;
+        try {
+            int min = android.media.AudioRecord.getMinBufferSize(RATE, android.media.AudioFormat.CHANNEL_IN_MONO,
+                    android.media.AudioFormat.ENCODING_PCM_16BIT);
+            ar = new android.media.AudioRecord(android.media.MediaRecorder.AudioSource.MIC, RATE,
+                    android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT,
+                    Math.max(min, RATE / 2));
+            if (ar.getState() != android.media.AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("میکروفون در دسترس نیست");
+            ar.startRecording();
+            audioState = "on";
+            Diag.log("میکروفون روشن شد");
+            long idleSince = 0;
+            while (audioRun) {
+                byte[] buf = new byte[RATE / 25 * 2]; // ۴۰ میلی‌ثانیه
+                int n = ar.read(buf, 0, buf.length);
+                if (n <= 0) continue;
+                if (n < buf.length) buf = java.util.Arrays.copyOf(buf, n);
+                synchronized (ALOCK) {
+                    aring[(int) (aseq % RING)] = buf;
+                    aseq++;
+                    ALOCK.notifyAll();
+                }
+                long now = System.currentTimeMillis();
+                if (audioViewers.get() == 0) {
+                    if (idleSince == 0) idleSince = now;
+                    else if (now - idleSince > 5000) break; // کسی گوش نمی‌دهد
+                } else idleSince = 0;
+            }
+            audioState = "off";
+        } catch (Exception e) {
+            audioState = "error";
+            Diag.log("میکروفون: " + e.getMessage());
+        } finally {
+            if (ar != null) {
+                try {
+                    ar.stop();
+                } catch (Exception ignored) {
+                }
+                ar.release();
+            }
+            synchronized (this) {
+                audioThread = null;
+            }
+            synchronized (ALOCK) {
+                ALOCK.notifyAll();
+            }
+            Diag.log("میکروفون خاموش شد");
+        }
+    }
+
     private HandlerThread thread;
     private Handler camHandler;
     private CameraDevice device;
@@ -179,6 +258,7 @@ public class CameraService extends Service {
 
     public static JSONObject status() {
         return J.obj("state", state, "error", error, "facing", facing, "quality", quality, "torch", torch,
+                "audio", audioState,
                 "fps", targetFps, "actualFps", Math.round(actualFps * 10) / 10.0,
                 "hasFlash", hasFlash, "orientation", orientation, "width", width, "height", height,
                 "viewers", viewers.get());
@@ -234,8 +314,11 @@ public class CameraService extends Service {
         }
         try {
             Notification n = buildNotification();
-            if (Build.VERSION.SDK_INT >= 30) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
-            else startForeground(NOTIF_ID, n);
+            if (Build.VERSION.SDK_INT >= 30) {
+                int types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA;
+                if (SmsRepo.has(this, Manifest.permission.RECORD_AUDIO)) types |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+                startForeground(NOTIF_ID, n, types);
+            } else startForeground(NOTIF_ID, n);
         } catch (Exception e) {
             if (standbyOnly) {
                 stopSelf();
@@ -293,6 +376,7 @@ public class CameraService extends Service {
                 thread.quitSafely();
             });
         }
+        audioRun = false;
         encoder.shutdownNow();
         instance = null;
         state = "off";
