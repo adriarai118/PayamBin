@@ -69,6 +69,7 @@ public class CameraService extends Service {
     public static final byte[][] aring = new byte[RING][];
     public static volatile long aseq = 0;
     public static volatile String audioState = "off"; // off | on | error
+    public static volatile boolean noiseSuppress = false;
     private volatile Thread audioThread;
     private volatile boolean audioRun;
 
@@ -117,6 +118,23 @@ public class CameraService extends Service {
                     android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT,
                     Math.max(min, RATE / 2));
             if (ar.getState() != android.media.AudioRecord.STATE_INITIALIZED) throw new IllegalStateException("میکروفون در دسترس نیست");
+            // کاهش نویز سخت‌افزاری گوشی (اگر پشتیبانی شود)
+            android.media.audiofx.NoiseSuppressor ns = null;
+            android.media.audiofx.AutomaticGainControl agc = null;
+            boolean nsWanted = noiseSuppress;
+            if (nsWanted) {
+                try {
+                    if (android.media.audiofx.NoiseSuppressor.isAvailable()) {
+                        ns = android.media.audiofx.NoiseSuppressor.create(ar.getAudioSessionId());
+                        if (ns != null) ns.setEnabled(true);
+                    }
+                    if (android.media.audiofx.AutomaticGainControl.isAvailable()) {
+                        agc = android.media.audiofx.AutomaticGainControl.create(ar.getAudioSessionId());
+                        if (agc != null) agc.setEnabled(true);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
             ar.startRecording();
             audioState = "on";
             main.post(this::updateNotification);
@@ -133,6 +151,7 @@ public class CameraService extends Service {
                     ALOCK.notifyAll();
                 }
                 long now = System.currentTimeMillis();
+                if (noiseSuppress != nsWanted) break; // تنظیم عوض شد → دوباره با تنظیم جدید
                 if (audioViewers.get() == 0) {
                     if (idleSince == 0) idleSince = now;
                     else if (now - idleSince > 5000) break; // کسی گوش نمی‌دهد
@@ -153,6 +172,7 @@ public class CameraService extends Service {
             synchronized (this) {
                 audioThread = null;
             }
+            if (audioRun && audioViewers.get() > 0 && "off".equals(audioState)) ensureAudio();
             synchronized (ALOCK) {
                 ALOCK.notifyAll();
             }
@@ -279,7 +299,7 @@ public class CameraService extends Service {
 
     public static JSONObject status() {
         return J.obj("state", state, "error", error, "facing", facing, "quality", quality, "torch", torch,
-                "audio", audioState,
+                "audio", audioState, "noiseSuppress", noiseSuppress,
                 "fps", targetFps, "actualFps", Math.round(actualFps * 10) / 10.0,
                 "hasFlash", hasFlash, "orientation", orientation, "width", width, "height", height,
                 "viewers", viewers.get());

@@ -375,7 +375,12 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
             <button id="micRec">⏺ ضبط صدا</button>
           </div>
           <div class="mictime hidden" id="micTime">REC 00:00:00</div>
-          <p class="mute" style="margin-top:14px;font-size:13px;color:var(--mute)">گوش دادن و ضبط مستقل‌اند: می‌توانید فقط ضبط کنید بدون اینکه صدایی از کامپیوتر پخش شود.</p>
+          <div class="recopts" style="margin-top:14px">
+            <label>بلندی پخش <input type="range" id="micVol" min="0" max="150" value="80" style="vertical-align:middle"></label>
+            <label title="کاهش نویز سخت‌افزاری گوشی؛ روی ضبط هم اثر دارد"><input type="checkbox" id="micNs"> کاهش نویز گوشی</label>
+          </div>
+          <p class="mute" style="margin-top:12px;font-size:13px;color:var(--mute)">گوش دادن و ضبط مستقل‌اند: می‌توانید فقط ضبط کنید بدون اینکه صدایی از کامپیوتر پخش شود.<br>
+          ⚠️ اگر گوشی نزدیک بلندگوی کامپیوتر است، صدای بلندگو دوباره وارد میکروفون می‌شود و صدای تیز (فیدبک) می‌سازد؛ با هدفون گوش دهید یا گوشی را دورتر بگذارید.</p>
           <div class="recopts">
             <label>ذخیره‌ی خودکار هر <select id="micSeg"><option value="10">۱۰ دقیقه</option><option value="30" selected>۳۰ دقیقه</option><option value="60">۶۰ دقیقه</option><option value="0">فقط در پایان</option></select></label>
             <span id="micSaved"></span>
@@ -616,6 +621,7 @@ async function poll() {
     if (s.files !== st.ver.files) { st.ver.files = s.files; await refreshFiles(); }
     if (s.clip !== st.ver.clip) { st.ver.clip = s.clip; await refreshClip(); }
     if (s.cam && (st.tab === 'cam' || s.cam.state !== st.cam.state)) renderCam(s.cam);
+    if (s.cam && document.activeElement !== $('#micNs')) $('#micNs').checked = !!s.cam.noiseSuppress;
     $('#ringBtn').classList.toggle('on', !!s.ringing);
     $('#ringBtn').textContent = s.ringing ? '🔕 قطع زنگ' : '📳';
   } catch (e) {
@@ -1232,18 +1238,24 @@ const au = {ctx: null, mix: null, listen: null, dest: null, analyser: null, ctl:
   wantListen: false, wantRec: false, wantMicRec: false, rate: 24000, lastData: 0, msg: ''};
 function auInit() {
   if (au.ctx) return;
-  au.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  // هم‌نرخ با گوشی (۲۴ کیلوهرتز) تا هر تکه جدا تبدیل نشود و مرز تکه‌ها تق‌تق نکند
+  try { au.ctx = new AC({sampleRate: 24000, latencyHint: 'playback'}); } catch (e) { au.ctx = new AC(); }
   au.mix = au.ctx.createGain();
+  // مسیر شنیدن: حذف بم خیلی پایین (وزوز) و زیر خیلی بالا (خش) + کنترل بلندی
+  au.hp = au.ctx.createBiquadFilter(); au.hp.type = 'highpass'; au.hp.frequency.value = 90;
+  au.lp = au.ctx.createBiquadFilter(); au.lp.type = 'lowpass'; au.lp.frequency.value = 7500;
+  au.comp = au.ctx.createDynamicsCompressor(); au.comp.threshold.value = -20; au.comp.ratio.value = 6;
   au.listen = au.ctx.createGain(); au.listen.gain.value = 0;
   au.dest = au.ctx.createMediaStreamDestination();
-  au.mix.connect(au.listen); au.listen.connect(au.ctx.destination);
+  au.mix.connect(au.hp); au.hp.connect(au.lp); au.lp.connect(au.comp); au.comp.connect(au.listen); au.listen.connect(au.ctx.destination);
   au.mix.connect(au.dest);
   au.analyser = au.ctx.createAnalyser(); au.analyser.fftSize = 1024;
   au.mix.connect(au.analyser);
 }
 function auUpdate() {
   const need = au.wantListen || au.wantRec || au.wantMicRec;
-  if (need) { auInit(); au.ctx.resume(); au.listen.gain.value = au.wantListen ? 1 : 0; if (!au.running) auLoop(); }
+  if (need) { auInit(); au.ctx.resume(); au.listen.gain.value = au.wantListen ? Number($('#micVol').value) / 100 : 0; if (!au.running) auLoop(); }
   else if (au.running) { au.running = false; if (au.ctl) au.ctl.abort(); }
   $('#camAudio').classList.toggle('on', au.wantListen);
   $('#camAudio').textContent = au.wantListen ? '🔊 صدا' : '🔇 صدا';
@@ -1291,7 +1303,11 @@ async function auLoop() {
         for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 32768;
         const src = au.ctx.createBufferSource(); src.buffer = buf; src.connect(au.mix);
         const now = au.ctx.currentTime;
-        if (au.next < now + 0.05 || au.next > now + 1.0) au.next = now + 0.25; // بافر لرزش / جبران عقب‌افتادگی
+        if (au.next < now + 0.02 || au.next > now + 1.2) {
+          // عقب/جلو افتادیم → دوباره هم‌گام با بافر ۳۵۰ میلی‌ثانیه و کمی محو کردن تا «تق» نزند
+          au.next = now + 0.35;
+          for (let i = 0; i < Math.min(240, ch.length); i++) ch[i] *= i / 240;
+        }
         src.start(au.next); au.next += buf.duration;
       }
     } catch (e) {}
@@ -1300,6 +1316,11 @@ async function auLoop() {
 }
 $('#camAudio').onclick = () => { au.wantListen = !au.wantListen; auUpdate(); };
 $('#micListen').onclick = () => { au.wantListen = !au.wantListen; auUpdate(); };
+$('#micVol').value = lsGet('pb_micvol') || 80;
+$('#micVol').oninput = () => { lsSet('pb_micvol', $('#micVol').value); if (au.listen && au.wantListen) au.listen.gain.value = Number($('#micVol').value) / 100; };
+$('#micNs').onchange = async () => {
+  try { await api('/api/cam', {method: 'POST', body: JSON.stringify({action: 'none', noiseSuppress: $('#micNs').checked})}); toast($('#micNs').checked ? 'کاهش نویز روشن شد' : 'کاهش نویز خاموش شد'); } catch (e) {}
+};
 
 /* ضبط فقط صدا */
 const mrec = {on: false, mr: null, start: 0, segStart: 0, saved: 0, mime: '', timer: null};

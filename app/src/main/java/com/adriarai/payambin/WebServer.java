@@ -486,6 +486,7 @@ public class WebServer {
                         String q = b.optString("quality");
                         CameraService.quality = q.equals("low") || q.equals("high") ? q : "mid";
                     }
+                    if (b.has("noiseSuppress")) CameraService.noiseSuppress = b.optBoolean("noiseSuppress");
                     if (b.has("fps")) CameraService.targetFps = Math.max(5, Math.min(30, b.optInt("fps", 24)));
                     if (act.equals("start") || act.equals("reconfig")) CameraService.request(ctx);
                     else if (act.equals("stop")) CameraService.stop(ctx);
