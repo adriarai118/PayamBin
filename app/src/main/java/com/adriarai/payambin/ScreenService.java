@@ -42,6 +42,7 @@ public class ScreenService extends Service {
     public static volatile String state = "off"; // off | waiting_tap | on | error
     public static volatile String error = null;
     public static volatile String quality = "mid";
+    public static volatile boolean dimPref = true;
     public static volatile int fps = 15;
     public static volatile int realW = 0, realH = 0, capW = 0, capH = 0;
     public static final AtomicInteger viewers = new AtomicInteger();
@@ -70,6 +71,8 @@ public class ScreenService extends Service {
             boolean watching = viewers.get() > 0;
             if (watching && (screenLock == null || !screenLock.isHeld())) acquireScreen(false);
             if (!watching && screenLock != null && screenLock.isHeld()) screenLock.release();
+            if (watching && Prefs.screenDim(ScreenService.this)) dimOn();
+            else dimOff();
             setPaused(!watching);
             main.postDelayed(this, 1000);
         }
@@ -102,7 +105,7 @@ public class ScreenService extends Service {
     }
 
     public static JSONObject status() {
-        return J.obj("state", state, "error", error, "quality", quality, "fps", fps,
+        return J.obj("state", state, "error", error, "quality", quality, "fps", fps, "dim", dimPref,
                 "w", capW, "h", capH, "realW", realW, "realH", realH,
                 "control", ControlService.instance != null, "viewers", viewers.get());
     }
@@ -296,6 +299,57 @@ public class ScreenService extends Service {
         });
     }
 
+    // ---- کم کردن نور صفحه‌ی گوشی هنگام تماشا ----
+    private int savedBrightness = -1, savedMode = -1;
+
+    public static boolean canDim(Context c) {
+        return Build.VERSION.SDK_INT < 23 || android.provider.Settings.System.canWrite(c);
+    }
+
+    private void dimOn() {
+        if (savedBrightness >= 0 || !canDim(this)) return;
+        try {
+            android.content.ContentResolver cr = getContentResolver();
+            savedMode = android.provider.Settings.System.getInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE, 0);
+            savedBrightness = android.provider.Settings.System.getInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS, 128);
+            android.provider.Settings.System.putInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE,
+                    android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+            getSharedPreferences("payambin", MODE_PRIVATE).edit()
+                    .putInt("dim_saved_b", savedBrightness).putInt("dim_saved_m", savedMode).apply();
+            android.provider.Settings.System.putInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS, 1);
+            Diag.log("نور صفحه‌ی گوشی کم شد (تماشا از کامپیوتر)");
+        } catch (Exception e) {
+            savedBrightness = -1;
+        }
+    }
+
+    private void dimOff() {
+        if (savedBrightness < 0) return;
+        try {
+            android.content.ContentResolver cr = getContentResolver();
+            android.provider.Settings.System.putInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS, savedBrightness);
+            if (savedMode >= 0) android.provider.Settings.System.putInt(cr, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE, savedMode);
+        } catch (Exception ignored) {
+        }
+        savedBrightness = -1;
+        savedMode = -1;
+        getSharedPreferences("payambin", MODE_PRIVATE).edit().remove("dim_saved_b").remove("dim_saved_m").apply();
+    }
+
+    /** اگر برنامه وسط تماشا بسته شده بود، نور قبلی را برگردان */
+    public static void restoreBrightnessIfNeeded(Context c) {
+        if (instance != null) return;
+        android.content.SharedPreferences sp = c.getSharedPreferences("payambin", MODE_PRIVATE);
+        int b = sp.getInt("dim_saved_b", -1), m = sp.getInt("dim_saved_m", -1);
+        if (b < 0 || !canDim(c)) return;
+        try {
+            android.provider.Settings.System.putInt(c.getContentResolver(), android.provider.Settings.System.SCREEN_BRIGHTNESS, b);
+            if (m >= 0) android.provider.Settings.System.putInt(c.getContentResolver(), android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE, m);
+        } catch (Exception ignored) {
+        }
+        sp.edit().remove("dim_saved_b").remove("dim_saved_m").apply();
+    }
+
     @SuppressWarnings("deprecation")
     private void acquireScreen(boolean wakeNow) {
         try {
@@ -346,6 +400,7 @@ public class ScreenService extends Service {
     @Override
     public void onDestroy() {
         main.removeCallbacksAndMessages(null);
+        dimOff();
         try {
             if (display != null) display.release();
         } catch (Exception ignored) {

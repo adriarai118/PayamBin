@@ -512,11 +512,14 @@ public class WebServer {
                         ScreenService.quality = q.equals("low") || q.equals("high") ? q : "mid";
                     }
                     if (b.has("fps")) ScreenService.fps = Math.max(2, Math.min(30, b.optInt("fps", 15)));
+                    if (b.has("dim")) Prefs.setScreenDim(ctx, b.optBoolean("dim"));
                     if (act.equals("start")) ScreenService.request(ctx);
                     else if (act.equals("stop")) ScreenService.stop(ctx);
                     else if (act.equals("wake")) ScreenService.wake(ctx);
                 }
-                return Res.json(J.put(ScreenService.status(), "controlEnabled", ControlService.isEnabled(ctx)));
+                ScreenService.dimPref = Prefs.screenDim(ctx);
+                return Res.json(J.put(J.put(J.put(ScreenService.status(), "controlEnabled", ControlService.isEnabled(ctx)),
+                        "canDim", ScreenService.canDim(ctx)), "dim", Prefs.screenDim(ctx)));
 
             case "/api/screen/input": {
                 if (!r.method.equals("POST")) return Res.err(400, "POST required");

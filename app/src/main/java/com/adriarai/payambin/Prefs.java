@@ -153,6 +153,15 @@ public final class Prefs {
         sp(c).edit().putBoolean("cam_standby", v).apply();
     }
 
+    /** هنگام تماشای صفحه از کامپیوتر، نور گوشی به کمترین برسد */
+    public static boolean screenDim(Context c) {
+        return sp(c).getBoolean("screen_dim", true);
+    }
+
+    public static void setScreenDim(Context c, boolean v) {
+        sp(c).edit().putBoolean("screen_dim", v).apply();
+    }
+
     /** تم برنامه: system | light | dark */
     public static String theme(Context c) {
         return sp(c).getString("theme", "system");

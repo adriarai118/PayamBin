@@ -150,6 +150,7 @@ public class ServerService extends Service {
         super.onCreate();
         Diag.init(this);
         Diag.log("— سرویس ساخته شد (pid " + android.os.Process.myPid() + ")");
+        ScreenService.restoreBrightnessIfNeeded(this);
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel ch = new NotificationChannel(CHANNEL, "سرور پیام‌بین", NotificationManager.IMPORTANCE_LOW);
             ch.setShowBadge(false);

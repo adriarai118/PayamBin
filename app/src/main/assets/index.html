@@ -400,6 +400,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
           <select id="scrQuality"><option value="low">کیفیت کم</option><option value="mid" selected>کیفیت متوسط</option><option value="high">کیفیت بالا</option></select>
           <select id="scrFps"><option value="8">۸ فریم</option><option value="15" selected>۱۵ فریم</option><option value="24">۲۴ فریم</option><option value="30">۳۰ فریم</option></select>
           <button id="scrFull">⛶ تمام‌صفحه</button>
+          <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="scrDim" checked> نور گوشی کم شود</label>
           <div class="sep"></div>
           <small>کلیک = لمس · نگه داشتن = لمس طولانی · کشیدن = سوایپ · چرخ ماوس = اسکرول · کلیک راست = برگشت · Esc = برگشت · Ctrl+V = چسباندن متن</small>
         </div>
@@ -1584,6 +1585,8 @@ function renderScr(c) {
   $('#scrStart').classList.toggle('pri', !on);
   if (document.activeElement !== $('#scrQuality')) $('#scrQuality').value = c.quality || 'mid';
   if (document.activeElement !== $('#scrFps')) $('#scrFps').value = String(c.fps || 15);
+  if (c.dim !== undefined) $('#scrDim').checked = !!c.dim;
+  if (c.dim && c.canDim === false && on && !st.dimWarned) { st.dimWarned = true; toast('برای کم شدن نور گوشی: در برنامه ☰ ← مجوزها ← «کم کردن نور گوشی» اجازه دهید'); }
   if (on && st.tab === 'screen' && (!st.scrViewing || prev !== 'on')) scrView();
   if (!on && st.scrViewing) scrUnview();
   if (on && c.controlEnabled === false && !scrCtlWarned) { scrCtlWarned = true; toast('برای کنترل با ماوس: در گوشی ☰ ← مجوزها ← «کنترل گوشی با ماوس و کیبورد» را فعال کنید'); }
@@ -1601,6 +1604,7 @@ $('#scrImg').onerror = () => { if (st.scrViewing && st.scr.state === 'on' && st.
 $('#scrStart').onclick = () => scrCmd({action: st.scr.state === 'on' ? 'stop' : 'start', quality: $('#scrQuality').value, fps: Number($('#scrFps').value)});
 $('#scrQuality').onchange = () => scrCmd({action: 'none', quality: $('#scrQuality').value});
 $('#scrFps').onchange = () => scrCmd({action: 'none', fps: Number($('#scrFps').value)});
+$('#scrDim').onchange = () => scrCmd({action: 'none', dim: $('#scrDim').checked});
 $('#scrWake').onclick = () => scrCmd({action: 'wake'});
 $('#scrFull').onclick = () => { const s = $('#scrStage'); if (document.fullscreenElement) document.exitFullscreen(); else s.requestFullscreen && s.requestFullscreen(); };
 

@@ -117,6 +117,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Diag.init(this);
+        ScreenService.restoreBrightnessIfNeeded(this);
         loadTheme();
         styleWindow();
         if (savedInstanceState != null) page = savedInstanceState.getString("page", "home");
@@ -519,6 +520,15 @@ public class MainActivity extends Activity {
         final TextView[] media = statusRow(k, "عکس‌ها و ویدیوها (برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] cam = statusRow(k, "دوربین (پخش زنده برای کامپیوتر)", "اجازه", v -> askPerms());
         final TextView[] mic = statusRow(k, "میکروفون (صدای زنده و ضبط با صدا)", "اجازه", v -> askPerms());
+        final TextView[] dimRow = statusRow(k, "کم کردن نور گوشی هنگام تماشای صفحه از کامپیوتر", "اجازه", v -> {
+            if (Build.VERSION.SDK_INT >= 23) {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + getPackageName())));
+                } catch (Exception e) {
+                    openAppDetails();
+                }
+            }
+        });
         final TextView[] ctl = statusRow(k, "کنترل گوشی با ماوس و کیبورد (دسترسی‌پذیری)", "فعال‌سازی", v -> {
             try {
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
@@ -567,6 +577,7 @@ public class MainActivity extends Activity {
             setMark(cam, SmsRepo.has(this, Manifest.permission.CAMERA));
             setMark(mic, SmsRepo.has(this, Manifest.permission.RECORD_AUDIO));
             setMark(ctl, ControlService.isEnabled(this));
+            setMark(dimRow, ScreenService.canDim(this));
             setMark(notif, NotifListener.isEnabled(this));
             setMark(bat, SmsRepo.ignoringBattery(this));
             setMark(inst, Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls());
