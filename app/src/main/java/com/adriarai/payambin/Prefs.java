@@ -144,6 +144,15 @@ public final class Prefs {
         sp(c).edit().putStringSet("proxy_clients", new HashSet<>(s)).apply();
     }
 
+    /** دوربین همیشه آماده: بعد از یک بار تأیید، بدون تأیید دوباره روشن شود */
+    public static boolean camStandby(Context c) {
+        return sp(c).getBoolean("cam_standby", true);
+    }
+
+    public static void setCamStandby(Context c, boolean v) {
+        sp(c).edit().putBoolean("cam_standby", v).apply();
+    }
+
     /** تم برنامه: system | light | dark */
     public static String theme(Context c) {
         return sp(c).getString("theme", "system");

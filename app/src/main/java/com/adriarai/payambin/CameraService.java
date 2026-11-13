@@ -38,12 +38,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** پخش زنده‌ی دوربین گوشی برای کامپیوتر (MJPEG) */
 public class CameraService extends Service {
     public static final String ACTION_START = "com.adriarai.payambin.CAM_START";
-    public static final String ACTION_STOP = "com.adriarai.payambin.CAM_STOP";
+    public static final String ACTION_STOP = "com.adriarai.payambin.CAM_STOP";       // غیرفعال کامل
+    public static final String ACTION_STANDBY = "com.adriarai.payambin.CAM_STANDBY"; // فقط آماده (بدون روشن کردن دوربین)
     private static final int NOTIF_ID = 88, ASK_ID = 89;
     private static final String CH = "camera";
 
     // ---- وضعیت مشترک ----
-    public static volatile String state = "off";   // off | waiting_tap | starting | on | error
+    public static volatile String state = "off";   // off | ready | waiting_tap | starting | on | error
     public static volatile String error = null;
     public static volatile String facing = "back";
     public static volatile String quality = "mid";   // low | mid | high
@@ -73,15 +74,15 @@ public class CameraService extends Service {
     private long fpsStart = 0;
     private android.util.Range<Integer> aeRange;
     private boolean fromTap = false;
+    private volatile boolean camOpen = false;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable idleCheck = new Runnable() {
         @Override
         public void run() {
             if (viewers.get() > 0) lastViewerTime = System.currentTimeMillis();
-            else if (System.currentTimeMillis() - lastViewerTime > 45_000) {
+            else if (camOpen && System.currentTimeMillis() - lastViewerTime > 45_000) {
                 Diag.log("دوربین: کسی تماشا نمی‌کند، خاموش شد");
-                stopSelf();
-                return;
+                if (!goStandby()) return;
             }
             main.postDelayed(this, 5000);
         }
@@ -99,7 +100,10 @@ public class CameraService extends Service {
             return;
         }
         if (instance != null) {
-            instance.camHandler.post(instance::reopen);
+            state = "starting";
+            CameraService s = instance;
+            s.camHandler.post(s::reopen);
+            s.main.post(s::updateNotification);
             return;
         }
         state = "starting";
@@ -112,9 +116,59 @@ public class CameraService extends Service {
         }
     }
 
+    /** خاموش کردن دوربین از کامپیوتر: اگر «همیشه آماده» روشن است فقط دوربین بسته می‌شود */
     public static void stop(Context c) {
+        CameraService s = instance;
+        if (s != null && Prefs.camStandby(c)) {
+            s.main.post(s::goStandby);
+            return;
+        }
         c.getApplicationContext().stopService(new Intent(c.getApplicationContext(), CameraService.class));
         state = "off";
+    }
+
+    /** از MainActivity (برنامه جلوی چشم است → اندروید اجازه می‌دهد) */
+    public static void ensureStandby(Context c) {
+        if (instance != null || !Prefs.camStandby(c) || !SmsRepo.has(c, Manifest.permission.CAMERA)) return;
+        try {
+            Intent i = new Intent(c, CameraService.class).setAction(ACTION_STANDBY);
+            if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(i);
+            else c.startService(i);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void disable(Context c) {
+        c.getApplicationContext().stopService(new Intent(c.getApplicationContext(), CameraService.class));
+        state = "off";
+    }
+
+    /** دوربین را ببند ولی سرویس را آماده نگه دار؛ اگر «همیشه آماده» خاموش است کل سرویس را ببند */
+    private boolean goStandby() {
+        if (!Prefs.camStandby(this)) {
+            stopSelf();
+            return false;
+        }
+        camHandler.post(() -> {
+            closeCamera();
+            torch = false;
+            actualFps = 0;
+            state = "ready";
+            synchronized (LOCK) {
+                frame = null;
+                seq++;
+                LOCK.notifyAll();
+            }
+            main.post(this::updateNotification);
+        });
+        return true;
+    }
+
+    private void updateNotification() {
+        try {
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).notify(NOTIF_ID, buildNotification());
+        } catch (Exception ignored) {
+        }
     }
 
     public static void setTorch(boolean on) {
@@ -172,6 +226,7 @@ public class CameraService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        boolean standbyOnly = intent != null && ACTION_STANDBY.equals(intent.getAction());
         fromTap = intent != null && intent.getBooleanExtra("tap", false);
         if (fromTap) {
             ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(ASK_ID);
@@ -182,6 +237,10 @@ public class CameraService extends Service {
             if (Build.VERSION.SDK_INT >= 30) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA);
             else startForeground(NOTIF_ID, n);
         } catch (Exception e) {
+            if (standbyOnly) {
+                stopSelf();
+                return START_NOT_STICKY;
+            }
             // اندروید ۱۴+: از پس‌زمینه اجازه نمی‌دهد → از کاربر لمس بخواه
             Diag.log("دوربین از پس‌زمینه روشن نشد؛ درخواست لمس روی گوشی");
             if (!fromTap) askTap(this);
@@ -197,9 +256,15 @@ public class CameraService extends Service {
             thread = new HandlerThread("payambin-cam");
             thread.start();
             camHandler = new Handler(thread.getLooper());
-            camHandler.post(this::open);
             main.postDelayed(idleCheck, 5000);
+            if (standbyOnly) {
+                state = "ready";
+                Diag.log("دوربین در حالت آماده (بدون نیاز به تأیید)");
+            } else camHandler.post(this::open);
+        } else if (!standbyOnly && !camOpen) {
+            camHandler.post(this::reopen);
         }
+        updateNotification();
         return START_NOT_STICKY;
     }
 
@@ -209,12 +274,13 @@ public class CameraService extends Service {
                 new Intent(this, CameraService.class).setAction(ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+        boolean live = camOpen || "starting".equals(state);
         return b.setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle("📷 دوربین برای کامپیوتر در حال پخش است")
-                .setContentText("لمس کنید تا قطع شود")
+                .setContentTitle(live ? "📷 دوربین برای کامپیوتر در حال پخش است" : "📷 دوربین آماده است (خاموش)")
+                .setContentText(live ? "برای قطع و غیرفعال کردن لمس کنید" : "از کامپیوتر بدون تأیید روشن می‌شود — لمس: غیرفعال کردن")
                 .setOngoing(true)
                 .setContentIntent(stop)
-                .addAction(new Notification.Action.Builder(null, "قطع دوربین", stop).build())
+                .addAction(new Notification.Action.Builder(null, live ? "قطع دوربین" : "غیرفعال کردن", stop).build())
                 .build();
     }
 
@@ -269,6 +335,7 @@ public class CameraService extends Service {
         session = null;
         device = null;
         reader = null;
+        camOpen = false;
     }
 
     private String pickCamera(CameraManager cm) throws CameraAccessException {
@@ -331,7 +398,9 @@ public class CameraService extends Service {
                             public void onConfigured(CameraCaptureSession s) {
                                 session = s;
                                 applyRequest();
+                                camOpen = true;
                                 state = "on";
+                                main.post(CameraService.this::updateNotification);
                                 Diag.log("دوربین روشن شد (" + facing + " " + width + "x" + height + ")");
                             }
 

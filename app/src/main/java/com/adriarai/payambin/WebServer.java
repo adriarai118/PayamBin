@@ -491,7 +491,7 @@ public class WebServer {
                     else if (act.equals("stop")) CameraService.stop(ctx);
                     else if (act.equals("torch")) CameraService.setTorch(b.optBoolean("on"));
                 }
-                return Res.json(CameraService.status());
+                return Res.json(J.put(CameraService.status(), "standby", Prefs.camStandby(ctx)));
 
             case "/api/cam/snap": {
                 byte[] f = CameraService.frame;
@@ -516,7 +516,8 @@ public class WebServer {
                                 f = CameraService.frame;
                                 s = CameraService.seq;
                             }
-                            if (CameraService.state.equals("off") || CameraService.state.equals("error")) break;
+                            String cs = CameraService.state;
+                            if (cs.equals("off") || cs.equals("error") || cs.equals("ready")) break;
                             if (f == null || s == last) continue;
                             last = s;
                             out.write(("--pbframe\r\nContent-Type: image/jpeg\r\nContent-Length: " + f.length + "\r\n\r\n")

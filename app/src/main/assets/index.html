@@ -1106,7 +1106,8 @@ function camStatusText(c) {
     case 'starting': return 'در حال روشن کردن دوربین…';
     case 'error': return '⚠️ ' + esc(c.error || 'خطا');
     case 'on': return '';
-    default: return 'دوربین خاموش است';
+    case 'ready': return '✅ دوربین آماده است<br><small style="display:block;opacity:.75;margin-top:6px">بدون نیاز به تأیید روی گوشی روشن می‌شود</small>';
+    default: return 'دوربین خاموش است' + (c.standby === false ? '' : '<small style="display:block;opacity:.75;margin-top:6px">بار اول باید روی گوشی تأیید کنید، یا یک بار برنامه‌ی پیام‌بین را روی گوشی باز کنید</small>');
   }
 }
 function renderCam(c) {
@@ -1119,14 +1120,15 @@ function renderCam(c) {
   $('#camInfo').classList.toggle('hidden', !on);
   $('#camInfo').textContent = on ? `${c.width}×${c.height} · ${c.actualFps || 0} fps · ${c.facing === 'front' ? 'front' : 'back'}` : '';
   if (c.fps) $('#camFps').value = String(c.fps);
-  $('#camStart').textContent = c.state === 'off' || c.state === 'error' ? '▶ روشن کردن دوربین' : '⏹ خاموش کردن دوربین';
-  $('#camStart').classList.toggle('pri', c.state === 'off' || c.state === 'error');
+  const idle = c.state === 'off' || c.state === 'error' || c.state === 'ready';
+  $('#camStart').textContent = idle ? '▶ روشن کردن دوربین' : '⏹ خاموش کردن دوربین';
+  $('#camStart').classList.toggle('pri', idle);
   $('#camFacing').textContent = c.facing === 'front' ? '🔄 دوربین عقب' : '🔄 دوربین جلو';
   $('#camTorch').classList.toggle('hidden', !(on && c.hasFlash));
   $('#camTorch').classList.toggle('on', !!c.torch);
   $('#camQuality').value = c.quality || 'mid';
   if (on && st.tab === 'cam' && (!st.camViewing || prev !== 'on')) camView();
-  if (!on && st.camViewing && (c.state === 'off' || c.state === 'error')) camUnview();
+  if (!on && st.camViewing && (c.state === 'off' || c.state === 'error' || c.state === 'ready')) camUnview();
   layoutCam();
   // در حالت انتظار سریع‌تر وضعیت را بپرس
   clearTimeout(camPollT);
@@ -1154,7 +1156,7 @@ function layoutCam() {
 window.addEventListener('resize', layoutCam);
 document.addEventListener('fullscreenchange', () => setTimeout(layoutCam, 50));
 $('#camStart').onclick = () => {
-  const off = st.cam.state === 'off' || st.cam.state === 'error';
+  const off = st.cam.state === 'off' || st.cam.state === 'error' || st.cam.state === 'ready';
   camCmd(off ? {action: 'start', facing: st.cam.facing || 'back', quality: $('#camQuality').value, fps: Number($('#camFps').value)} : {action: 'stop'});
 };
 $('#camFacing').onclick = () => camCmd({action: st.cam.state === 'on' ? 'reconfig' : 'none', facing: st.cam.facing === 'front' ? 'back' : 'front'});

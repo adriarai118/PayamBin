@@ -296,6 +296,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         handler.post(tick);
+        CameraService.ensureStandby(this); // برنامه جلوی چشم است → دوربین بعداً بدون تأیید روشن می‌شود
     }
 
     @Override
@@ -625,6 +626,16 @@ public class MainActivity extends Activity {
             ProxyServer.clearAllowed(this);
             Toast.makeText(this, "پاک شد؛ هر دستگاه باید دوباره وارد صفحه‌ی پیام‌بین شود", Toast.LENGTH_LONG).show();
         });
+
+        LinearLayout kcam = card();
+        heading(kcam, "📷 دوربین");
+        Switch sb = switchRow(kcam, "همیشه آماده (روشن شدن از کامپیوتر بدون تأیید روی گوشی)", Prefs.camStandby(this));
+        sb.setOnCheckedChangeListener((b, v) -> {
+            Prefs.setCamStandby(this, v);
+            if (v) CameraService.ensureStandby(this);
+            else CameraService.disable(this);
+        });
+        para(kcam, "بعد از ری‌استارت گوشی یک بار برنامه را باز کنید تا دوباره آماده شود. هر کس رمز پیام‌بین را داشته باشد می‌تواند دوربین را روشن کند؛ نقطه‌ی سبز و اعلان «در حال پخش» همیشه دیده می‌شود.");
 
         LinearLayout k3 = card();
         heading(k3, "امنیت");
