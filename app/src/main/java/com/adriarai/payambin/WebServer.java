@@ -708,6 +708,20 @@ public class WebServer {
                 if (!SmsRepo.has(ctx, Manifest.permission.READ_SMS)) return Res.err(403, "no READ_SMS permission");
                 return Res.json(SmsRepo.threads(ctx, r.qi("limit", 300)));
 
+            case "/api/sms/read": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                boolean phone = b.optBoolean("phone", true);
+                if (b.optBoolean("all")) {
+                    JSONArray ts = SmsRepo.threads(ctx, 300);
+                    for (int i = 0; i < ts.length(); i++) {
+                        JSONObject t = ts.getJSONObject(i);
+                        if (t.optInt("unread") > 0) SmsRead.mark(ctx, t.optLong("thread"), t.optString("address"), phone);
+                    }
+                } else SmsRead.mark(ctx, b.optLong("thread"), b.optString("address"), phone);
+                return Res.json(J.obj("ok", true));
+            }
+
             case "/api/messages":
                 if (!SmsRepo.has(ctx, Manifest.permission.READ_SMS)) return Res.err(403, "no READ_SMS permission");
                 return Res.json(SmsRepo.messages(ctx, r.ql("thread", -1), r.qi("limit", 400)));

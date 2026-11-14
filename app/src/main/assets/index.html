@@ -316,6 +316,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
       <aside class="side">
         <div class="side-top">
           <input id="q" placeholder="جستجو… (Enter: جستجو در متن پیام‌ها)">
+          <button id="smsReadAll" class="hidden" title="همهٔ پیامک‌ها خوانده شود">✓ همه</button>
           <button id="newBtn" title="پیام جدید">+ جدید</button>
         </div>
         <div class="list" id="threadList"></div>
@@ -780,8 +781,7 @@ async function refreshSms() {
       () => { setTab('sms'); if (t) openThread(t); }, 'sms');
   }
   st.baseSms = Math.max(st.baseSms || 0, maxIn);
-  const unread = list.reduce((s, t) => s + (t.unread || 0), 0);
-  $('#smsBadge').textContent = faNum(unread); $('#smsBadge').classList.toggle('hidden', !unread);
+  renderSmsBadge();
 
   // گفتگوی جدیدی که از کامپیوتر شروع شده بود
   if (st.cur && st.cur.thread == null) {
@@ -789,8 +789,29 @@ async function refreshSms() {
     if (t) st.cur = t;
   }
   if (!st.search) renderThreads();
-  if (st.cur && st.cur.thread != null) loadMessages(false);
+  if (st.cur && st.cur.thread != null) {
+    // پیامک تازه در گفتگویی که همین الان باز است = خوانده شد
+    const cur = list.find(x => x.thread === st.cur.thread);
+    if (cur && cur.unread && st.tab === 'sms' && !document.hidden && document.hasFocus()) smsMarkRead(cur);
+    loadMessages(false);
+  }
 }
+
+function renderSmsBadge() {
+  const unread = st.threads.reduce((s, t) => s + (t.unread || 0), 0);
+  $('#smsBadge').textContent = faNum(unread); $('#smsBadge').classList.toggle('hidden', !unread);
+  $('#smsReadAll').classList.toggle('hidden', !unread);
+}
+async function smsMarkRead(t) {
+  // باز کردن گفتگو یعنی خوانده شد
+  if (!t || t.thread == null || !t.unread) return;
+  t.unread = 0; renderSmsBadge(); renderThreads();
+  try { await api('/api/sms/read', {method: 'POST', body: JSON.stringify({thread: t.thread, address: t.address, phone: readSync()})}); } catch (e) {}
+}
+$('#smsReadAll').onclick = async () => {
+  st.threads.forEach(t => t.unread = 0); renderSmsBadge(); renderThreads();
+  try { await api('/api/sms/read', {method: 'POST', body: JSON.stringify({all: true, phone: readSync()})}); toast('همهٔ پیامک‌ها خوانده شد'); } catch (e) {}
+};
 
 function renderThreadsError(e) {
   $('#threadList').innerHTML = `<div class="empty" style="padding:30px">${e.message.includes('READ_SMS') ? 'مجوز خواندن پیامک داده نشده' : 'خطا: ' + esc(e.message)}</div>`;
@@ -821,6 +842,7 @@ $('#threadList').addEventListener('click', e => {
 
 function openThread(t) {
   st.cur = t;
+  if (!document.hidden) smsMarkRead(t);
   document.body.classList.add('show-conv');
   if (!st.search) renderThreads();
   else document.querySelectorAll('#threadList .item').forEach(i => i.classList.toggle('sel', i.dataset.t === String(t.thread)));

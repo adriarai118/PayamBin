@@ -31,6 +31,38 @@ public class NotifListener extends NotificationListenerService {
                 || t.contains("خوانده") || t.contains("خواندم") || t.contains("دیده شد") || l.contains("прочитано");
     }
 
+    // اعلان‌های برنامهٔ پیامک گوشی: کلید شماره/نام فرستنده ← دکمهٔ «خوانده شد» و کلید اعلان
+    private static final java.util.Map<String, Notification.Action> smsMarks = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, String> smsKeys = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** پیامک‌های این فرستنده روی گوشی هم خوانده شود (دکمهٔ «خوانده شد» برنامهٔ پیامک + برداشتن اعلان) */
+    public static void markSmsRead(Context ctx, String address, String name) {
+        java.util.Set<String> ks = new java.util.HashSet<>();
+        ks.add(SmsRead.key(address));
+        if (name != null && !name.isEmpty()) ks.add(SmsRead.key(name));
+        for (String k : ks) {
+            Notification.Action a = smsMarks.remove(k);
+            if (a != null) {
+                try {
+                    a.actionIntent.send(ctx, 0, new Intent());
+                    Diag.log("پیامک روی گوشی خوانده شد: " + k);
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        NotifListener l = inst;
+        if (l == null) return;
+        for (java.util.Map.Entry<String, String> e : new java.util.ArrayList<>(smsKeys.entrySet())) {
+            if (!ks.contains(e.getValue())) continue;
+            smsKeys.remove(e.getKey());
+            selfCancel.add(e.getKey());
+            try {
+                l.cancelNotification(e.getKey());
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     public static boolean canMark(String conv) {
         return conv != null && markActions.containsKey(conv);
     }
@@ -85,6 +117,7 @@ public class NotifListener extends NotificationListenerService {
     private void removed(StatusBarNotification sbn, int reason) {
         try {
             String key = sbn.getKey();
+            smsKeys.remove(key);
             String conv = keyConv.remove(key);
             if (selfCancel.remove(key)) return;
             if (conv == null) return;
@@ -214,7 +247,19 @@ public class NotifListener extends NotificationListenerService {
 
             // پیامک‌ها در زبانهٔ پیامک نمایش داده می‌شوند؛ اعلان برنامهٔ پیامک پیش‌فرض تکراری است
             String smsApp = Telephony.Sms.getDefaultSmsPackage(this);
-            if (pkg.equals(smsApp)) return;
+            if (pkg.equals(smsApp)) {
+                Bundle se = n.extras;
+                CharSequence st = se == null ? null : cs(se, Notification.EXTRA_TITLE);
+                if (Build.VERSION.SDK_INT >= 24 && se != null && !empty(cs(se, Notification.EXTRA_CONVERSATION_TITLE)))
+                    st = cs(se, Notification.EXTRA_CONVERSATION_TITLE);
+                if (!empty(st)) {
+                    String k = SmsRead.key(st.toString());
+                    smsKeys.put(sbn.getKey(), k);
+                    Notification.Action ma = findMarkRead(n);
+                    if (ma != null) smsMarks.put(k, ma);
+                }
+                return;
+            }
 
             Bundle ex = n.extras;
             if (ex == null) return;

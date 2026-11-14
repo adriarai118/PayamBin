@@ -73,6 +73,7 @@ public final class SmsRepo {
     /** فهرست گفتگوها (جدیدترین اول) */
     public static JSONArray threads(Context ctx, int maxThreads) {
         LinkedHashMap<Long, JSONObject> map = new LinkedHashMap<>();
+        java.util.HashMap<Long, Long> readCache = new java.util.HashMap<>();
         Cursor c = null;
         try {
             c = ctx.getContentResolver().query(SMS, null, null, null, "date DESC");
@@ -98,7 +99,11 @@ public final class SmsRepo {
                     map.put(tid, t);
                 }
                 J.put(t, "count", t.optInt("count") + 1);
-                if (type == 1 && l(c, k.read) == 0) J.put(t, "unread", t.optInt("unread") + 1);
+                if (type == 1 && l(c, k.read) == 0) {
+                    Long upTo = readCache.get(tid);
+                    if (upTo == null) readCache.put(tid, upTo = SmsRead.readUpTo(ctx, tid));
+                    if (l(c, k.date) > upTo) J.put(t, "unread", t.optInt("unread") + 1);
+                }
             }
         } finally {
             if (c != null) c.close();
