@@ -625,7 +625,7 @@ function findCode(text) {
   if (!kws.some(k => k.ty === 1)) return null;
   const hasNum = (a, b) => /\d/.test(t.slice(a, b));
   let best = null, bestScore = Infinity;
-  for (const m of t.matchAll(/(?<![\d,./:٫٬*\-])(\d{4,8})(?![\d,/:٫٬*]|\.\d)/g)) {
+  for (const m of t.matchAll(/(?<![\d,./٫٬*\-])(?<!\d[:.])(\d{4,8})(?![\d,/٫٬*]|[.:]\d)/g)) {
     const s = m.index, e = s + m[1].length, after = t.slice(e), before = t.slice(0, s);
     if (/^\s*[-_]?\s*\d{1,2}:\d{2}/.test(after) || /\d{1,2}:\d{2}\s*[-_]?\s*$/.test(before)) continue;
     if (/^\s*(ریال|تومان|rial|irr)/i.test(after)) continue;

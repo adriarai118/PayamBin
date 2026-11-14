@@ -25,7 +25,7 @@ public final class Otp {
     private static final String SOFT_KW = "خرید|انتقال|برداشت|واریز|کارت|card|دوم|اینترنتی|یکبار|مصرف";
     private static final Pattern KW = Pattern.compile("(" + OTP_KW + ")|(" + HARD_KW + ")|(" + SOFT_KW + ")",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Pattern NUM = Pattern.compile("(?<![\\d,./:٫٬*\\-])(\\d{4,8})(?![\\d,/:٫٬*]|\\.\\d)");
+    private static final Pattern NUM = Pattern.compile("(?<![\\d,./٫٬*\\-])(?<!\\d[:.])(\\d{4,8})(?![\\d,/٫٬*]|[.:]\\d)");
     /** عدد چسبیده به ساعت مثل 0823-14:08 یا 14:08 0823 تاریخ است */
     private static final Pattern TIME_AFTER = Pattern.compile("^\\s*[-_]?\\s*\\d{1,2}:\\d{2}");
     private static final Pattern TIME_BEFORE = Pattern.compile("\\d{1,2}:\\d{2}\\s*[-_]?\\s*$");
