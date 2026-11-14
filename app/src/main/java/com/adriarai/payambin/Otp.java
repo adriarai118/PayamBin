@@ -24,8 +24,8 @@ public final class Otp {
     /** کلمه‌های خنثی که در عبارت‌هایی مثل «رمز خرید» یا «رمز انتقال» می‌آیند */
     private static final String SOFT_KW = "خرید|انتقال|برداشت|واریز|کارت|card|دوم|اینترنتی|یکبار|مصرف";
     private static final Pattern KW = Pattern.compile("(" + OTP_KW + ")|(" + HARD_KW + ")|(" + SOFT_KW + ")",
-            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Pattern NUM = Pattern.compile("(?<![\\d,./٫٬*\\-])(?<!\\d[:.])(\\d{4,8})(?![\\d,/٫٬*]|[.:]\\d)");
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern NUM = Pattern.compile("[0-9]+");
     /** عدد چسبیده به ساعت مثل 0823-14:08 یا 14:08 0823 تاریخ است */
     private static final Pattern TIME_AFTER = Pattern.compile("^\\s*[-_]?\\s*\\d{1,2}:\\d{2}");
     private static final Pattern TIME_BEFORE = Pattern.compile("\\d{1,2}:\\d{2}\\s*[-_]?\\s*$");
@@ -47,7 +47,14 @@ public final class Otp {
     static String norm(String s) {
         String t = java.text.Normalizer.normalize(latinDigits(s), java.text.Normalizer.Form.NFKC);
         t = latinDigits(t).replace('ي', 'ی').replace('ى', 'ی').replace('ك', 'ک').replace('ة', 'ه');
-        return t.replaceAll("[\\u200b-\\u200f\\u202a-\\u202e\\u2066-\\u2069\\ufeff\\u0640]", "");
+        StringBuilder sb = new StringBuilder(t.length());
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            boolean invisible = (c >= 0x200b && c <= 0x200f) || (c >= 0x202a && c <= 0x202e)
+                    || (c >= 0x2066 && c <= 0x2069) || c == 0xfeff || c == 0x0640;
+            if (!invisible) sb.append(c);
+        }
+        return sb.toString();
     }
 
     /**
@@ -76,7 +83,8 @@ public final class Otp {
         int bestScore = Integer.MAX_VALUE;
         Matcher m = NUM.matcher(t);
         while (m.find()) {
-            int s = m.start(1), e = m.end(1);
+            int s = m.start(), e = m.end();
+            if (e - s < 4 || e - s > 8 || !standalone(t, s, e)) continue;
             String after = t.substring(e), before = t.substring(0, s);
             if (TIME_AFTER.matcher(after).find() || TIME_BEFORE.matcher(before).find()) continue;
             if (UNIT_AFTER.matcher(after).find()) continue;
@@ -107,9 +115,23 @@ public final class Otp {
                     if (kw[2] == 2) break;
                 }
             }
-            if (score >= 0 && score < bestScore) { bestScore = score; best = m.group(1); }
+            if (score >= 0 && score < bestScore) { bestScore = score; best = m.group(); }
         }
         return best;
+    }
+
+    /** عدد جزئی از مبلغ (1,000)، تاریخ (1403/08/23)، ساعت (14:08)، اعشار یا شمارهٔ کارت (***1234) نباشد */
+    private static boolean standalone(String t, int s, int e) {
+        char p = s > 0 ? t.charAt(s - 1) : ' ', n = e < t.length() ? t.charAt(e) : ' ';
+        if (",./٫٬*-".indexOf(p) >= 0) return false;
+        if (p == ':' && s >= 2 && isD(t.charAt(s - 2))) return false;
+        if (",/٫٬*".indexOf(n) >= 0) return false;
+        if ((n == '.' || n == ':') && e + 1 < t.length() && isD(t.charAt(e + 1))) return false;
+        return true;
+    }
+
+    private static boolean isD(char c) {
+        return c >= '0' && c <= '9';
     }
 
     private static boolean hasNum(String t, int from, int to) {
