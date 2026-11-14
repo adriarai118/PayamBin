@@ -111,6 +111,17 @@ main{flex:1;min-height:0;display:flex}
 .n .x{white-space:pre-wrap;word-wrap:break-word;line-height:1.85}
 .n .s{color:var(--acc);font-weight:600}
 .n.new{border-color:var(--acc2)}
+.ctx{position:fixed;z-index:9999;min-width:220px;max-width:320px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.22);padding:6px;font-size:13px;direction:rtl;animation:ctxIn .1s ease-out}
+@keyframes ctxIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.ctx .hd{padding:4px 10px 6px;color:var(--mute);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--line);margin-bottom:4px}
+.ctx button{display:flex;gap:10px;align-items:center;width:100%;text-align:right;border:0;background:none;padding:7px 10px;border-radius:8px;cursor:pointer;color:var(--ink);font:inherit}
+.ctx button:hover,.ctx button.kb{background:var(--accsoft)}
+.ctx button .i{width:18px;text-align:center;flex:none}
+.ctx button .k{margin-inline-start:auto;color:var(--mute);font-size:11px}
+.ctx button.danger{color:#dc2626}
+.ctx hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+.ctx .ft{color:var(--mute);font-size:10.5px;padding:5px 10px 2px;border-top:1px solid var(--line);margin-top:4px}
+.ctx-hl{outline:2px solid var(--acc);outline-offset:2px;border-radius:10px}
 .n.unread{border-inline-start:4px solid var(--acc);background:linear-gradient(to left,var(--accsoft),var(--panel) 40%)}
 .n.unread .t::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-inline-end:6px;vertical-align:middle}
 .n .acts button.rd{color:var(--acc);border-color:var(--acc);font-weight:700}
@@ -875,7 +886,8 @@ async function loadMessages(jump) {
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
     const simSlot = {}; st.sims.forEach(s => simSlot[s.id] = s.slot);
     let lastDay = '', html = '';
-    for (const m of msgs) {
+    st.curMsgs = msgs;
+    for (const [i, m] of msgs.entries()) {
       const d = new Date(m.date), dk = d.toDateString();
       if (dk !== lastDay) { html += `<div class="day">${dayLabel(d)}</div>`; lastDay = dk; }
       const out = m.type !== 1;
@@ -883,7 +895,7 @@ async function loadMessages(jump) {
       if (m.type === 5) stat = '<span class="fail">ارسال نشد</span>';
       else if (m.type === 4 || m.type === 6) stat = '<span>در حال ارسال…</span>';
       const sim = st.sims.length > 1 && simSlot[m.sub] ? `<span>سیم ${faNum(simSlot[m.sub])}</span>` : '';
-      html += `<div class="b ${out ? 'out' : 'in'}">${rich(m.body)}<div class="ft">${stat}${sim}<span>${fTime.format(d)}</span></div></div>`;
+      html += `<div class="b ${out ? 'out' : 'in'}" data-i="${i}">${rich(m.body)}<div class="ft">${stat}${sim}<span>${fTime.format(d)}</span></div></div>`;
     }
     box.innerHTML = html || '<div class="empty">پیامی نیست</div>';
     if (jump || nearBottom) box.scrollTop = box.scrollHeight;
@@ -1930,6 +1942,197 @@ $('#newKey').onclick = async () => {
 renderBell();
 (async () => {
   try { await api('/api/state'); start(); } catch (e) { if (!(e instanceof AuthError)) showLogin(); }
+})();
+
+/* ---------- منوی راست‌کلیک مخصوص پیام‌بین ---------- */
+(function () {
+  let menu = null, hl = null;
+  const close = () => { const m = menu, h = hl; menu = null; hl = null; if (m) m.remove(); if (h) h.classList.remove('ctx-hl'); };
+  const toPhone = async t => { try { await api('/api/clip', {method: 'POST', body: JSON.stringify({text: t})}); toast('در کلیپ‌بورد گوشی قرار گرفت'); } catch (e) {} };
+  const smsTo = (num, text) => {
+    const ex = st.threads.find(t => normNum(t.address) === normNum(num));
+    setTab('sms'); openThread(ex || {thread: null, address: toLatin(num).trim(), name: null});
+    if (text) { bodyEl.value = text; bodyEl.dispatchEvent(new Event('input')); bodyEl.focus(); }
+  };
+  const searchSms = q => { setTab('sms'); $('#q').value = q; $('#q').dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})); };
+  const looksNum = t => { const d = toLatin(t).replace(/[\s\-()]/g, ''); return /^\+?\d{7,15}$/.test(d); };
+  const short = t => { t = (t || '').replace(/\s+/g, ' ').trim(); return t.length > 40 ? t.slice(0, 40) + '…' : t; };
+  const textItems = (text, label) => {
+    const code = findCode(text), it = [];
+    if (code) it.push({i: '🔑', t: 'کپی کد ' + code, f: () => copy(code)});
+    it.push({i: '📋', t: label || 'کپی متن', f: () => copy(text)});
+    it.push({i: '📲', t: 'بفرست به کلیپ‌بورد گوشی', f: () => toPhone(text)});
+    return it;
+  };
+  const go = (tab, i, t) => ({i, t, f: () => setTab(tab)});
+
+  function build(e) {
+    const tg = e.target, sel = (window.getSelection() || '').toString().trim();
+    let head = '', items = [];
+
+    // متن انتخاب‌شده
+    if (sel) {
+      head = '«' + short(sel) + '»';
+      items.push(...textItems(sel, 'کپی'));
+      if (looksNum(sel)) {
+        items.push({i: '✉️', t: 'پیامک به این شماره', f: () => smsTo(sel)});
+        const w = waLink(sel); if (w) items.push({i: '🟢', t: 'گفتگو در واتس‌اپ وب', f: () => window.open(w, '_blank')});
+      }
+      items.push({i: '🔍', t: 'جستجو در همهٔ پیامک‌ها', f: () => searchSms(sel)});
+      return {head, items};
+    }
+
+    // حباب پیامک
+    const b = tg.closest('#msgs .b');
+    if (b && st.curMsgs) {
+      const m = st.curMsgs[Number(b.dataset.i)]; hl = b;
+      if (m) {
+        head = (m.type === 1 ? 'پیامک از ' + (st.cur.name || st.cur.address) : 'پیامک شما') + ' · ' + fFull.format(new Date(m.date));
+        items.push(...textItems(m.body));
+        items.push('-');
+        items.push({i: '↩️', t: 'نقل در پاسخ', f: () => { bodyEl.value = '«' + short(m.body) + '»\n' + bodyEl.value; bodyEl.dispatchEvent(new Event('input')); bodyEl.focus(); }});
+        items.push({i: '➡️', t: 'فرستادن برای شمارهٔ دیگر…', f: () => { const n = prompt('شمارهٔ گیرنده:'); if (n && normNum(n)) smsTo(n, m.body); }});
+        if (m.type === 5) items.push({i: '🔁', t: 'ارسال دوباره', f: () => { bodyEl.value = m.body; bodyEl.dispatchEvent(new Event('input')); $('#compose').requestSubmit(); }});
+      }
+      return {head, items};
+    }
+
+    // گفتگوی پیامک
+    const th = tg.closest('#threadList .item');
+    if (th && th.dataset.t) {
+      const t = st.threads.find(x => String(x.thread) === th.dataset.t); hl = th;
+      if (t) {
+        head = (t.name ? t.name + ' · ' : '') + t.address;
+        items.push({i: '💬', t: 'باز کردن', f: () => openThread(t)});
+        if (t.unread) items.push({i: '✓', t: 'خوانده شد', f: () => smsMarkRead(t)});
+        items.push('-');
+        items.push({i: '📋', t: 'کپی شماره', f: () => copy(t.address)});
+        if (t.name) items.push({i: '👤', t: 'کپی نام و شماره', f: () => copy(t.name + ' ' + t.address)});
+        const w = waLink(t.address); if (w) items.push({i: '🟢', t: 'گفتگو در واتس‌اپ وب', f: () => window.open(w, '_blank')});
+        items.push({i: '📲', t: 'آخرین پیام به کلیپ‌بورد گوشی', f: () => toPhone(t.snippet)});
+      }
+      return {head, items};
+    }
+
+    // کارت اعلان
+    const nc = tg.closest('#notifList .n');
+    if (nc) {
+      const n = st.notifs.find(x => x.id === Number(nc.dataset.id)); hl = nc;
+      if (n) {
+        head = n.app + ' · ' + (n.title || '');
+        if (!n.read && !n.out) items.push({i: '✓', t: 'خوانده شد', f: () => markRead(n.conv ? {id: n.id, conv: n.conv} : {id: n.id})});
+        const ri = nc.querySelector('input[data-rid]');
+        if (ri) items.push({i: '↩️', t: 'پاسخ', f: () => ri.focus()});
+        items.push(...textItems(n.text));
+        items.push('-');
+        if (st.notifApp !== n.pkg) items.push({i: '🗂', t: 'فقط اعلان‌های ' + n.app, f: () => { st.notifApp = n.pkg; renderApps(); renderNotifs(); }});
+        items.push({i: '🗑', t: 'حذف این اعلان', f: () => nc.querySelector('[data-del]').click()});
+        if (!n.out) {
+          items.push({i: '🚫', t: 'مسدود: «' + short(n.title || 'این فرستنده') + '»', d: 1, f: async () => { await api('/api/notifs/block', {method: 'POST', body: JSON.stringify({id: n.id, scope: 'conv'})}); toast('مسدود شد'); refreshNotifs(); }});
+          items.push({i: '⛔', t: 'مسدود: کل ' + n.app, d: 1, f: async () => { if (!confirm(`همه‌ی اعلان‌های «${n.app}» مسدود و حذف شود؟`)) return; await api('/api/notifs/block', {method: 'POST', body: JSON.stringify({id: n.id, scope: 'app'})}); st.notifApp = ''; toast('مسدود شد'); refreshNotifs(); }});
+        }
+      }
+      return {head, items};
+    }
+
+    // برنامه در فهرست اعلان‌ها
+    const ap = tg.closest('#appList .item');
+    if (ap) {
+      const pkg = ap.dataset.p, a = st.apps.find(x => x.pkg === pkg); hl = ap;
+      head = pkg ? (a ? a.app : pkg) : 'همهٔ اعلان‌ها';
+      items.push({i: '🗂', t: 'نمایش', f: () => ap.click()});
+      if (pkg ? a && a.unread : unreadOf(st.notifs)) items.push({i: '✓', t: 'همه خوانده شد', f: () => markRead(pkg ? {pkg} : {all: true})});
+      items.push('-');
+      items.push({i: '🧹', t: 'پاک کردن اعلان‌ها', d: 1, f: async () => { if (!confirm(`اعلان‌های «${head}» پاک شود؟`)) return; await api('/api/notifs/clear', {method: 'POST', body: JSON.stringify({pkg})}); st.notifApp = ''; refreshNotifs(); }});
+      return {head, items};
+    }
+
+    // تماس
+    const cl = tg.closest('#callList .call');
+    if (cl) {
+      hl = cl;
+      const bt = cl.querySelector('[data-sms]'), num = bt ? bt.dataset.sms : '';
+      head = cl.querySelector('.nm').textContent;
+      if (num) {
+        items.push({i: '✉️', t: 'پیامک', f: () => smsTo(num)});
+        items.push({i: '📋', t: 'کپی شماره', f: () => copy(num)});
+        const w = waLink(num); if (w) items.push({i: '🟢', t: 'گفتگو در واتس‌اپ وب', f: () => window.open(w, '_blank')});
+        items.push({i: '🔍', t: 'پیامک‌های این شماره', f: () => searchSms(num)});
+      }
+      return {head, items};
+    }
+
+    // فایل‌ها
+    const fr = tg.closest('#filesView .frow');
+    if (fr) {
+      hl = fr; head = fr.querySelector('.fn').textContent;
+      fr.querySelectorAll('button').forEach(btn => {
+        const lbl = btn.textContent.trim();
+        const share = btn.dataset.share !== undefined;
+        items.push({i: share ? '📤' : lbl === 'حذف' ? '🗑' : lbl === 'نمایش' ? '👁' : '⬇️', t: share ? 'فرستادن در ' + lbl : lbl, d: lbl === 'حذف', f: () => btn.click()});
+      });
+      items.push({i: '📋', t: 'کپی نام فایل', f: () => copy(head)});
+      return {head, items};
+    }
+    const tile = tg.closest('#media .tile');
+    if (tile) {
+      hl = tile; head = tile.title;
+      items.push({i: '👁', t: 'نمایش', f: () => window.open(tile.dataset.open, '_blank')});
+      items.push({i: '⬇️', t: 'دانلود', f: () => tile.querySelector('a.dl').click()});
+      return {head, items};
+    }
+
+    // جای خالی صفحه
+    head = 'پیام‌بین';
+    items.push({i: '🔄', t: 'تازه‌سازی', k: 'F5', f: () => location.reload()});
+    if (unreadOf(st.notifs) || st.threads.some(t => t.unread)) items.push({i: '✓', t: 'همه چیز خوانده شد', f: () => { if (unreadOf(st.notifs)) markRead({all: true}); if (st.threads.some(t => t.unread)) $('#smsReadAll').click(); }});
+    if (lastOtp) items.push({i: '🔑', t: 'کپی آخرین کد (' + lastOtp + ')', f: () => copy(lastOtp)});
+    items.push({i: '📋', t: 'کلیپ‌بورد مشترک', f: () => $('#clipBtn').click()});
+    items.push({i: '📳', t: $('#ringBtn').classList.contains('on') ? 'قطع زنگ گوشی' : 'پیدا کردن گوشی (زنگ)', f: () => $('#ringBtn').click()});
+    items.push({i: '✏️', t: 'پیامک جدید…', f: () => { setTab('sms'); $('#newBtn').click(); }});
+    items.push('-');
+    items.push(go('sms', '💬', 'پیامک‌ها'), go('notif', '🔔', 'اعلان‌ها'), go('calls', '📞', 'تماس‌ها'), go('files', '📁', 'فایل‌ها'));
+    items.push('-');
+    items.push({i: '⚙️', t: 'تنظیمات', f: () => openSettings()});
+    return {head, items};
+  }
+
+  document.addEventListener('contextmenu', e => {
+    close();
+    if (e.shiftKey) return;                                     // Shift + راست‌کلیک = منوی خود مرورگر
+    if ($('#app').classList.contains('hidden')) return;          // صفحهٔ ورود
+    const tg = e.target;
+    if (tg.closest('input, textarea, select, [contenteditable], video, canvas, #screenView, #camView, .modal')) return;
+    if (tg.closest('a[href]') && !(window.getSelection() || '').toString().trim()) return;
+    const r = build(e);
+    if (!r.items.length) return;
+    e.preventDefault();
+    if (hl) hl.classList.add('ctx-hl');
+    menu = document.createElement('div'); menu.className = 'ctx';
+    const acts = [];
+    menu.innerHTML = (r.head ? `<div class="hd">${esc(r.head)}</div>` : '') + r.items.map(x => {
+      if (x === '-') return '<hr>';
+      acts.push(x);
+      return `<button data-a="${acts.length - 1}" class="${x.d ? 'danger' : ''}"><span class="i">${x.i || ''}</span><span>${esc(x.t)}</span>${x.k ? `<span class="k">${x.k}</span>` : ''}</button>`;
+    }).join('').replace(/^(<hr>)+|(<hr>)+$/g, '') + '<div class="ft">Shift + راست‌کلیک: منوی مرورگر</div>';
+    menu.onclick = ev => { const bt = ev.target.closest('button[data-a]'); if (!bt) return; const a = acts[Number(bt.dataset.a)]; close(); Promise.resolve().then(a.f).catch(err => { if (!(err instanceof AuthError)) toast(err.message); }); };
+    document.body.appendChild(menu);
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.max(6, Math.min(e.clientX - (e.clientX - w > 6 ? w : 0), innerWidth - w - 6)) + 'px';
+    menu.style.top = Math.max(6, Math.min(e.clientY, innerHeight - h - 6)) + 'px';
+  });
+  document.addEventListener('mousedown', e => { if (menu && !menu.contains(e.target)) close(); });
+  document.addEventListener('keydown', e => {
+    if (!menu) return;
+    const bs = [...menu.querySelectorAll('button[data-a]')], i = bs.findIndex(b => b.classList.contains('kb'));
+    if (e.key === 'Escape') { close(); e.preventDefault(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); bs.forEach(b => b.classList.remove('kb'));
+      bs[(i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length].classList.add('kb');
+    } else if (e.key === 'Enter' && i >= 0) { e.preventDefault(); bs[i].click(); }
+  }, true);
+  window.addEventListener('scroll', e => { if (menu && !menu.contains(e.target)) close(); }, true);
+  window.addEventListener('resize', close); window.addEventListener('blur', close);
 })();
 </script>
 </body>
