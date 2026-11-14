@@ -387,6 +387,7 @@ public class WebServer {
                 if (n == null || text.isEmpty()) return Res.err(400, "bad request");
                 String err = NotifListener.reply(ctx, n.optString("conv"), text);
                 if (err != null) return Res.err(409, err);
+                NotifStore.get(ctx).markReadConv(n.optString("conv")); // پاسخ دادن یعنی خوانده شده
                 NotifStore.get(ctx).add(J.obj("pkg", n.optString("pkg"), "app", n.optString("app"),
                         "title", n.optString("title"), "sender", "شما", "text", text,
                         "time", System.currentTimeMillis(), "conv", n.optString("conv"), "out", true));
@@ -737,12 +738,22 @@ public class WebServer {
                 for (int i = 0; i < items.length(); i++) {
                     JSONObject o = new JSONObject(items.getJSONObject(i).toString());
                     J.put(o, "canReply", NotifListener.canReply(o.optString("conv")));
+                    J.put(o, "canMark", NotifListener.canMark(o.optString("conv")));
                     outItems.put(o);
                 }
                 return Res.json(J.obj(
                         "blocked", NotifStore.get(ctx).rules(),
                         "items", outItems,
                         "apps", NotifStore.get(ctx).apps()));
+            }
+
+            case "/api/notifs/read": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                java.util.Set<String> convs = NotifStore.get(ctx).markRead(b.optLong("id"),
+                        b.optString("pkg", ""), b.optBoolean("all"));
+                if (b.optBoolean("phone", true)) for (String c : convs) NotifListener.markRead(ctx, c);
+                return Res.json(J.obj("ok", true, "convs", convs.size()));
             }
 
             case "/api/notifs/delete": {

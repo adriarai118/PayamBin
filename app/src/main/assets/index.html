@@ -111,6 +111,13 @@ main{flex:1;min-height:0;display:flex}
 .n .x{white-space:pre-wrap;word-wrap:break-word;line-height:1.85}
 .n .s{color:var(--acc);font-weight:600}
 .n.new{border-color:var(--acc2)}
+.n.unread{border-inline-start:4px solid var(--acc);background:linear-gradient(to left,var(--accsoft),var(--panel) 40%)}
+.n.unread .t::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-inline-end:6px;vertical-align:middle}
+.n .acts button.rd{color:var(--acc);border-color:var(--acc);font-weight:700}
+.n.unread .acts{opacity:1}
+.nopts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-inline-start:auto;font-size:12px}
+.nopts label{display:flex;gap:4px;align-items:center;cursor:pointer;color:var(--mute);white-space:nowrap}
+.nopts button{font-size:12px;padding:4px 9px}
 
 /* سربرگ: باتری، کد، دکمه‌ها */
 .hbtn{padding:6px 10px}
@@ -753,7 +760,7 @@ function setTab(t) {
   if (t === 'cam') camEnter(); else camLeave();
   if (t === 'files') { st.seenFiles = st.outCount; renderFilesBadge(); if (!st.mediaLoaded) loadMedia(); }
   document.body.classList.remove('show-conv');
-  if (t === 'notif') { st.seenNotif = maxNotifId(); renderNotifBadge(); }
+  if (t === 'notif') renderNotifBadge();
   if (t === 'calls') { st.seenMiss = maxMissId(); renderCallsBadge(); }
   renderBanner();
 }
@@ -935,11 +942,22 @@ $('#q').addEventListener('keydown', async e => {
 });
 
 /* ---------- اعلان‌ها ---------- */
-const maxNotifId = () => st.notifs.reduce((m, n) => Math.max(m, n.id), st.seenNotif);
+const unreadOf = l => l.filter(x => !x.read && !x.out).length;
 function renderNotifBadge() {
-  const n = st.notifs.filter(x => x.id > st.seenNotif).length;
+  const n = unreadOf(st.notifs);
   $('#notifBadge').textContent = faNum(n);
-  $('#notifBadge').classList.toggle('hidden', !n || st.tab === 'notif');
+  $('#notifBadge').classList.toggle('hidden', !n);
+}
+const readSync = () => lsGet('pb_readsync') !== '0';
+const onlyUnread = () => lsGet('pb_onlyunread') === '1';
+async function markRead(body) {
+  // اول روی صفحه، بعد روی گوشی
+  const hit = n => body.all || (body.pkg && n.pkg === body.pkg) || (body.conv ? n.conv === body.conv : n.id === body.id);
+  st.notifs.forEach(n => { if (hit(n)) n.read = true; });
+  st.apps.forEach(a => { a.unread = unreadOf(st.notifs.filter(n => n.pkg === a.pkg)); });
+  renderNotifBadge(); renderApps(); renderNotifs();
+  try { await api('/api/notifs/read', {method: 'POST', body: JSON.stringify({id: body.id || 0, pkg: body.pkg || '', all: !!body.all, phone: readSync()})}); }
+  catch (e) { if (!(e instanceof AuthError)) toast(e.message); }
 }
 async function refreshNotifs() {
   let r;
@@ -954,9 +972,7 @@ async function refreshNotifs() {
     alertNew(fresh.length, f ? (code ? `🔑 کد ${code} — ${f.app}` : `${f.app}: ${f.title}`) : 'اعلان جدید',
       f ? (f.sender ? f.sender + ': ' : '') + f.text : '', () => { setTab('notif'); }, 'notif');
   }
-  if (st.baseNotif === null) st.seenNotif = max;
   st.baseNotif = Math.max(st.baseNotif || 0, max);
-  if (st.tab === 'notif' && !document.hidden) st.seenNotif = max;
   renderNotifBadge();
   renderApps(); renderNotifs();
 }
@@ -965,13 +981,13 @@ function renderApps() {
   $('#appList').innerHTML = `
     <div class="item ${!st.notifApp ? 'sel' : ''}" data-p="">
       <div class="av" style="background:var(--acc)">★</div>
-      <div class="meta"><div class="row1"><span class="nm">همه</span><span class="badge">${faNum(all)}</span></div></div>
+      <div class="meta"><div class="row1"><span class="nm">همه</span>${unreadOf(st.notifs) ? `<span class="badge" title="نخوانده">${faNum(unreadOf(st.notifs))}</span>` : ''}</div><div class="sn">${faNum(all)} اعلان</div></div>
     </div>` + st.apps.map(a => `
     <div class="item ${st.notifApp === a.pkg ? 'sel' : ''}" data-p="${esc(a.pkg)}">
       <div class="av" style="background:${colorOf(a.pkg)}">${esc((a.app || '?')[0])}</div>
       <div class="meta">
         <div class="row1"><span class="nm">${esc(a.app)}</span><span class="tm">${when(a.last)}</span></div>
-        <div class="sn">${faNum(a.count)} اعلان</div>
+        <div class="row1"><span class="sn">${faNum(a.count)} اعلان</span>${a.unread ? `<span class="badge" title="نخوانده">${faNum(a.unread)}</span>` : ''}</div>
       </div>
     </div>`).join('');
 }
@@ -981,10 +997,20 @@ $('#appList').addEventListener('click', e => {
   document.body.classList.add('show-conv');
 });
 function renderNotifs() {
-  const list = st.notifApp ? st.notifs.filter(n => n.pkg === st.notifApp) : st.notifs;
+  const scoped = st.notifApp ? st.notifs.filter(n => n.pkg === st.notifApp) : st.notifs;
+  const ur = unreadOf(scoped);
+  const list = onlyUnread() ? scoped.filter(n => !n.read && !n.out) : scoped;
   const app = st.apps.find(a => a.pkg === st.notifApp);
-  $('#nHead').innerHTML = `<button class="back" id="nBack">→</button><div class="meta"><div class="nm">${st.notifApp ? esc(app ? app.app : st.notifApp) : 'همهٔ اعلان‌ها'}</div><div class="sub" style="direction:rtl">${faNum(list.length)} مورد · جدیدترین بالا</div></div>`;
+  $('#nHead').innerHTML = `<button class="back" id="nBack">→</button><div class="meta"><div class="nm">${st.notifApp ? esc(app ? app.app : st.notifApp) : 'همهٔ اعلان‌ها'}</div><div class="sub" style="direction:rtl">${faNum(scoped.length)} مورد${ur ? ` · <b style="color:var(--acc)">${faNum(ur)} نخوانده</b>` : ''} · جدیدترین بالا</div></div>
+    <div class="nopts">
+      <label title="فقط اعلان‌هایی که هنوز خوانده نشده‌اند"><input type="checkbox" id="optUnread" ${onlyUnread() ? 'checked' : ''}> فقط نخوانده‌ها</label>
+      <label title="وقتی اینجا «خوانده شد» می‌زنید، اعلان از روی گوشی هم برداشته می‌شود و اگر پیام‌رسان دکمهٔ «خوانده شد» داشته باشد (مثل واتس‌اپ و تلگرام) پیام آنجا هم خوانده‌شده علامت می‌خورد؛ یعنی طرف مقابل تیک خوانده‌شدن را می‌بیند"><input type="checkbox" id="optSync" ${readSync() ? 'checked' : ''}> روی گوشی هم</label>
+      ${ur ? `<button id="readAll">✓ همه خوانده شد</button>` : ''}
+    </div>`;
   $('#nBack').onclick = () => document.body.classList.remove('show-conv');
+  $('#optUnread').onchange = e => { lsSet('pb_onlyunread', e.target.checked ? '1' : '0'); renderNotifs(); };
+  $('#optSync').onchange = e => { lsSet('pb_readsync', e.target.checked ? '1' : '0'); toast(e.target.checked ? 'خوانده‌شدن روی گوشی هم اعمال می‌شود' : 'فقط روی همین صفحه خوانده می‌شود'); renderNotifs(); };
+  const ra = $('#readAll'); if (ra) ra.onclick = () => markRead(st.notifApp ? {pkg: st.notifApp} : {all: true});
   const seenConv = new Set();
   $('#notifList').innerHTML = list.length ? list.map(n => {
     // کادر پاسخ فقط زیر جدیدترین پیام هر گفتگو
@@ -993,12 +1019,13 @@ function renderNotifs() {
     const tools = first && (n.canReply || messenger) ? `
       ${n.canReply ? `<div class="rbox"><input placeholder="پاسخ به ${esc(n.title)}…" data-rid="${n.id}"><button class="pri" data-send="${n.id}">ارسال</button></div>` : ''}
       ${messenger ? `<div class="nbtns"><button data-attach="${esc(n.pkg)}" title="فایل را به گوشی می‌فرستد و در ${esc(messenger)} آماده‌ی ارسال می‌کند">📎 فایل در ${esc(messenger)}</button></div>` : ''}` : '';
-    return `<div class="n ${n.out ? 'out' : ''}" data-id="${n.id}">
+    const unread = !n.read && !n.out;
+    return `<div class="n ${n.out ? 'out' : ''} ${unread ? 'unread' : ''}" data-id="${n.id}">
       <div class="h"><span class="chip" style="background:${colorOf(n.pkg)}">${esc(n.app)}</span><span class="t">${esc(n.title)}</span><span class="tm">${fFull.format(new Date(n.time))}</span>
-        <span class="acts">${n.out ? '' : `<button data-blockmenu="${n.id}" title="مسدود کردن (تبلیغات)">🚫</button>`}<button data-del="${n.id}" title="حذف این اعلان">🗑</button></span></div>
+        <span class="acts">${unread ? `<button class="rd" data-read="${n.id}" title="${n.canMark && readSync() ? 'در ' + esc(n.app) + ' هم خوانده‌شده علامت می‌خورد' : readSync() ? 'اعلانش از روی گوشی هم برداشته می‌شود' : 'فقط اینجا'}">✓ خوانده شد</button>` : ''}${n.out ? '' : `<button data-blockmenu="${n.id}" title="مسدود کردن (تبلیغات)">🚫</button>`}<button data-del="${n.id}" title="حذف این اعلان">🗑</button></span></div>
       <div class="x">${n.sender ? `<span class="s">${esc(n.sender)}: </span>` : ''}${rich(n.text)}</div>${tools}
     </div>`;
-  }).join('') : `<div class="empty">${st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
+  }).join('') : `<div class="empty">${onlyUnread() && scoped.length ? 'اعلان نخوانده‌ای نیست ✓' : st.perms.notif === false ? 'دسترسی به اعلان‌ها روی گوشی فعال نیست' : 'هنوز اعلانی دریافت نشده'}</div>`;
 }
 const MESSENGERS = {'ir.nasim': 'بله', 'com.whatsapp': 'واتس‌اپ', 'com.whatsapp.w4b': 'واتس‌اپ بیزینس',
   'org.telegram.messenger': 'تلگرام', 'org.thunderdog.challegram': 'تلگرام', 'ir.eitaa.messenger': 'ایتا', 'ir.resaneh1.iptv': 'روبیکا'};
@@ -1027,6 +1054,11 @@ $('#notifList').addEventListener('click', async e => {
     card.appendChild(m); return;
   }
   if (b.dataset.cancel) { b.closest('.bmenu').remove(); return; }
+  if (b.dataset.read) {
+    const n = st.notifs.find(x => x.id === Number(b.dataset.read)); if (!n) return;
+    markRead(n.conv ? {id: n.id, conv: n.conv} : {id: n.id});
+    return;
+  }
   if (b.dataset.block) {
     const n = st.notifs.find(x => x.id === Number(b.dataset.bid));
     if (b.dataset.block === 'app' && !confirm(`همه‌ی اعلان‌های «${n ? n.app : ''}» مسدود و حذف شود؟`)) return;

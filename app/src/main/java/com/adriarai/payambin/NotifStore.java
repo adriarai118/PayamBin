@@ -117,6 +117,49 @@ public final class NotifStore {
         return a;
     }
 
+    // ---------------- خوانده‌شده ----------------
+
+    /** همهٔ اعلان‌های یک گفتگو خوانده شد؛ true اگر چیزی عوض شد */
+    public synchronized boolean markReadConv(String conv) {
+        boolean ch = false;
+        for (JSONObject o : items) {
+            if (!o.optBoolean("read") && conv.equals(o.optString("conv"))) { J.put(o, "read", true); ch = true; }
+        }
+        if (ch) { Versions.notif.incrementAndGet(); scheduleSave(); }
+        return ch;
+    }
+
+    /**
+     * علامت خوانده‌شده: با id (و همهٔ گفتگویش)، یا همهٔ یک برنامه (pkg)، یا همه.
+     * فهرست گفتگوهایی که عوض شدند برمی‌گردد (برای خوانده‌کردن روی گوشی).
+     */
+    public synchronized java.util.Set<String> markRead(long id, String pkg, boolean all) {
+        java.util.Set<String> convs = new java.util.LinkedHashSet<>();
+        String conv = null;
+        if (id > 0) {
+            JSONObject n = byId(id);
+            if (n == null) return convs;
+            conv = n.optString("conv", "");
+            if (conv.isEmpty()) {
+                if (!n.optBoolean("read")) { J.put(n, "read", true); Versions.notif.incrementAndGet(); scheduleSave(); }
+                return convs;
+            }
+        }
+        boolean ch = false;
+        for (JSONObject o : items) {
+            if (o.optBoolean("read")) continue;
+            if (conv != null) { if (!conv.equals(o.optString("conv"))) continue; }
+            else if (!all && !(pkg != null && pkg.equals(o.optString("pkg")))) continue;
+            J.put(o, "read", true);
+            ch = true;
+            String c = o.optString("conv", "");
+            if (!c.isEmpty()) convs.add(c);
+        }
+        if (conv != null) convs.add(conv);
+        if (ch) { Versions.notif.incrementAndGet(); scheduleSave(); }
+        return convs;
+    }
+
     public synchronized boolean delete(long id) {
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).optLong("id") == id) {
@@ -141,6 +184,7 @@ public final class NotifStore {
             JSONArray a = new JSONArray(new String(bo.toByteArray(), StandardCharsets.UTF_8));
             for (int i = 0; i < a.length(); i++) {
                 JSONObject o = a.getJSONObject(i);
+                if (!o.has("read")) J.put(o, "read", true); // اعلان‌های نسخه‌های قبل
                 items.add(o);
                 nextId = Math.max(nextId, o.optLong("id") + 1);
             }
@@ -158,6 +202,7 @@ public final class NotifStore {
                     && p.optString("text").equals(text)) return;
         }
         J.put(o, "id", nextId++);
+        J.put(o, "read", o.optBoolean("out"));
         items.add(0, o);
         while (items.size() > MAX) items.remove(items.size() - 1);
         Versions.notif.incrementAndGet();
@@ -196,10 +241,11 @@ public final class NotifStore {
             String pkg = o.optString("pkg");
             JSONObject a = m.get(pkg);
             if (a == null) {
-                a = J.obj("pkg", pkg, "app", o.optString("app"), "count", 0, "last", o.optLong("time"));
+                a = J.obj("pkg", pkg, "app", o.optString("app"), "count", 0, "unread", 0, "last", o.optLong("time"));
                 m.put(pkg, a);
             }
             J.put(a, "count", a.optInt("count") + 1);
+            if (!o.optBoolean("read")) J.put(a, "unread", a.optInt("unread") + 1);
         }
         JSONArray out = new JSONArray();
         for (JSONObject a : m.values()) out.put(a);

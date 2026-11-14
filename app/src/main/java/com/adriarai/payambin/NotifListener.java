@@ -19,6 +19,89 @@ import org.json.JSONObject;
 /** اعلان‌های برنامه‌های دیگر (بله، تلگرام، واتساپ، ایتا، روبیکا ...) را ذخیره می‌کند */
 public class NotifListener extends NotificationListenerService {
     public static volatile boolean connected = false;
+    private static volatile NotifListener inst;
+
+    // دکمه‌ی «خوانده شد» و کلیدهای اعلان‌های هر گفتگو روی گوشی (فقط در حافظه)
+    private static final java.util.Map<String, Notification.Action> markActions = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, String> keyConv = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Set<String> selfCancel = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+    private static final java.util.regex.Pattern MARK_RE = java.util.regex.Pattern.compile(
+            "\\bmark(ed)? (as )?read\\b|^read$|خوانده|خواندم|دیده شد|прочитано", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    public static boolean canMark(String conv) {
+        return conv != null && markActions.containsKey(conv);
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Notification.Action findMarkRead(Notification n) {
+        java.util.List<Notification.Action> all = new java.util.ArrayList<>();
+        if (n.actions != null) all.addAll(java.util.Arrays.asList(n.actions));
+        try {
+            all.addAll(new Notification.WearableExtender(n).getActions());
+        } catch (Exception ignored) {
+        }
+        Notification.Action byTitle = null;
+        for (Notification.Action a : all) {
+            if (a == null || a.actionIntent == null) continue;
+            if (a.getRemoteInputs() != null && a.getRemoteInputs().length > 0) continue;
+            if (Build.VERSION.SDK_INT >= 28 && a.getSemanticAction() == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ) return a;
+            String t = a.title == null ? "" : a.title.toString().trim();
+            if (byTitle == null && t.length() <= 30 && MARK_RE.matcher(t).find()) byTitle = a;
+        }
+        return byTitle;
+    }
+
+    /**
+     * گفتگو روی گوشی «خوانده شد»: اگر برنامه دکمه‌ی «خوانده شد» دارد آن را می‌زند (پیام در خود پیام‌رسان خوانده‌شده می‌شود)
+     * و اعلان‌های آن گفتگو را از نوار اعلان گوشی برمی‌دارد.
+     */
+    public static void markRead(Context ctx, String conv) {
+        if (conv == null || conv.isEmpty()) return;
+        Notification.Action a = markActions.remove(conv);
+        if (a != null) {
+            try {
+                a.actionIntent.send(ctx, 0, new Intent());
+                Diag.log("«خوانده شد» زده شد: " + conv);
+            } catch (Exception ignored) {
+            }
+        }
+        NotifListener l = inst;
+        if (l == null) return;
+        for (java.util.Map.Entry<String, String> e : new java.util.ArrayList<>(keyConv.entrySet())) {
+            if (!conv.equals(e.getValue())) continue;
+            selfCancel.add(e.getKey());
+            keyConv.remove(e.getKey());
+            try {
+                l.cancelNotification(e.getKey());
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /** اعلان از روی گوشی برداشته شد (کاربر روی گوشی بازش کرد/کنار زد یا خود برنامه پاکش کرد چون پیام خوانده شد) */
+    private void removed(StatusBarNotification sbn, int reason) {
+        try {
+            String key = sbn.getKey();
+            String conv = keyConv.remove(key);
+            if (selfCancel.remove(key)) return;
+            if (conv == null) return;
+            if (Build.VERSION.SDK_INT >= 26 && reason == REASON_LISTENER_CANCEL) return;
+            if (keyConv.containsValue(conv)) return; // هنوز اعلان دیگری از همین گفتگو روی گوشی هست
+            markActions.remove(conv);
+            if (NotifStore.get(this).markReadConv(conv)) Diag.log("روی گوشی خوانده شد: " + conv);
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap, int reason) {
+        removed(sbn, reason);
+    }
+
+    @Override
+    public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap) {
+        if (Build.VERSION.SDK_INT < 26) removed(sbn, 0);
+    }
 
     // دکمه‌ی «پاسخ» آخرین اعلان هر گفتگو (فقط در حافظه)
     private static final java.util.Map<String, Notification.Action> replies = new java.util.concurrent.ConcurrentHashMap<>();
@@ -68,6 +151,7 @@ public class NotifListener extends NotificationListenerService {
     public void onListenerConnected() {
         super.onListenerConnected();
         connected = true;
+        inst = this;
         Diag.init(this);
         Diag.log("دسترسی اعلان وصل شد");
     }
@@ -76,6 +160,7 @@ public class NotifListener extends NotificationListenerService {
     public void onListenerDisconnected() {
         super.onListenerDisconnected();
         connected = false;
+        inst = null;
         Diag.init(this);
         Diag.log("⚠️ سیستم دسترسی اعلان را قطع کرد — درخواست اتصال دوباره");
         if (Build.VERSION.SDK_INT >= 24) {
@@ -153,6 +238,9 @@ public class NotifListener extends NotificationListenerService {
             String convKey = pkg + "|" + head;
             Notification.Action ra = findReply(n);
             if (ra != null) replies.put(convKey, ra);
+            Notification.Action ma = findMarkRead(n);
+            if (ma != null) markActions.put(convKey, ma);
+            keyConv.put(sbn.getKey(), convKey);
             JSONObject o = J.obj(
                     "pkg", pkg,
                     "app", appLabel(pkg),
