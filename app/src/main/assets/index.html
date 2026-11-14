@@ -610,13 +610,41 @@ function alertNew(n, label, body, onclick, tag) {
 }
 
 /* تشخیص کد (همان منطق برنامهٔ گوشی) */
+const OTP_RE = /(کد|رمز|پویا|تایید|تأیید|password|passcode|code|otp|pass|pin|verification)|(مبلغ|مانده|موجودی|ریال|تومان|حساب|شماره|تاریخ|ساعت|پیگیری|رهگیری|سفارش|مرسوله|بارکد|amount|balance|account|date|time|ref|tracking)|(خرید|انتقال|برداشت|واریز|کارت|card|دوم|اینترنتی|یکبار|مصرف)/gi;
 function findCode(text) {
-  const t = toLatin(text || '');
-  const nums = [...t.matchAll(/(?<![\d,./:٫٬-])(\d{4,8})(?![\d,/:٫٬]|\.\d)/g)];
-  if (!nums.length) return null;
-  const k = t.search(/(کد|كد|رمز|پویا|پويا|تایید|تأیید|تاييد|code|otp|pass|pin|verification)/i);
-  if (k >= 0) { for (const m of nums) if (m.index >= k) return m[1]; return nums[nums.length - 1][1]; }
-  return nums.length === 1 ? nums[0][1] : null;
+  const t = toLatin(text || '').normalize('NFKC').replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/ة/g, 'ه')
+    .replace(/[​-‏‪-‮⁦-⁩﻿ـ]/g, '');
+  const kws = [...t.matchAll(OTP_RE)].map(m => ({s: m.index, e: m.index + m[0].length, ty: m[1] ? 1 : m[2] ? 2 : 3}));
+  if (!kws.some(k => k.ty === 1)) return null;
+  const hasNum = (a, b) => /\d/.test(t.slice(a, b));
+  let best = null, bestScore = Infinity;
+  for (const m of t.matchAll(/(?<![\d,./:٫٬*\-])(\d{4,8})(?![\d,/:٫٬*]|\.\d)/g)) {
+    const s = m.index, e = s + m[1].length, after = t.slice(e), before = t.slice(0, s);
+    if (/^\s*[-_]?\s*\d{1,2}:\d{2}/.test(after) || /\d{1,2}:\d{2}\s*[-_]?\s*$/.test(before)) continue;
+    if (/^\s*(ریال|تومان|rial|irr)/i.test(after)) continue;
+    let idx = -1; kws.forEach((k, i) => { if (k.e <= s) idx = i; });
+    let otp = false, hard = false, gap = -1;
+    if (idx >= 0 && s - kws[idx].e <= 30 && !hasNum(kws[idx].e, s)) {
+      gap = s - kws[idx].e; let edge = kws[idx].s;
+      for (let i = idx; i >= 0; i--) {
+        const k = kws[i];
+        if (i < idx && (edge - k.e > 12 || hasNum(k.e, edge))) break;
+        if (k.ty === 1) otp = true; else if (k.ty === 2) hard = true;
+        edge = k.s;
+      }
+    }
+    if (hard) continue;
+    let score = -1;
+    if (otp) score = gap;
+    else for (const k of kws) {
+      if (k.s < e) continue;
+      if (k.s - e > 30 || hasNum(e, k.s)) break;
+      if (k.ty === 1) { score = 100 + k.s - e; break; }
+      if (k.ty === 2) break;
+    }
+    if (score >= 0 && score < bestScore) { bestScore = score; best = m[1]; }
+  }
+  return best;
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = 'پیام‌بین'; } });
 
