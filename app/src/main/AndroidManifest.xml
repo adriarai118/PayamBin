@@ -44,6 +44,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
+        android:name=".App"
         android:label="پیام‌بین"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"

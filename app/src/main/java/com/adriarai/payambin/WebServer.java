@@ -241,11 +241,12 @@ public class WebServer {
             Res res;
             try {
                 res = route(req);
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                if (!(e instanceof Exception)) Diag.log("⚠️ خطای جدی در " + req.path + "\n" + Crash.trace(e));
                 res = Res.err(500, String.valueOf(e.getMessage()));
             }
             write(sock.getOutputStream(), res);
-        } catch (Exception ignored) {
+        } catch (Throwable ignored) {
         } finally {
             try {
                 sock.close();

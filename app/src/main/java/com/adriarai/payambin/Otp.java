@@ -56,6 +56,14 @@ public final class Otp {
      * یا کمی بعدش «کد/رمز» آمده باشد. بدون هیچ کلمهٔ کد/رمز چیزی برنمی‌گرداند.
      */
     public static String extract(String text) {
+        try {
+            return extract0(text);
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    private static String extract0(String text) {
         String t = norm(text);
         List<int[]> kws = new ArrayList<>(); // {start, end, type: 1=otp 2=hard 3=soft}
         Matcher k = KW.matcher(t);

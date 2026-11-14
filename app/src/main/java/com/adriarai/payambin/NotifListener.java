@@ -25,8 +25,11 @@ public class NotifListener extends NotificationListenerService {
     private static final java.util.Map<String, Notification.Action> markActions = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Map<String, String> keyConv = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Set<String> selfCancel = java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
-    private static final java.util.regex.Pattern MARK_RE = java.util.regex.Pattern.compile(
-            "\\bmark(ed)? (as )?read\\b|^read$|خوانده|خواندم|دیده شد|прочитано", java.util.regex.Pattern.CASE_INSENSITIVE);
+    private static boolean isMarkTitle(String t) {
+        String l = t.toLowerCase(java.util.Locale.ROOT);
+        return l.equals("read") || l.contains("mark as read") || l.contains("mark read") || l.contains("marked as read")
+                || t.contains("خوانده") || t.contains("خواندم") || t.contains("دیده شد") || l.contains("прочитано");
+    }
 
     public static boolean canMark(String conv) {
         return conv != null && markActions.containsKey(conv);
@@ -46,7 +49,7 @@ public class NotifListener extends NotificationListenerService {
             if (a.getRemoteInputs() != null && a.getRemoteInputs().length > 0) continue;
             if (Build.VERSION.SDK_INT >= 28 && a.getSemanticAction() == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ) return a;
             String t = a.title == null ? "" : a.title.toString().trim();
-            if (byTitle == null && t.length() <= 30 && MARK_RE.matcher(t).find()) byTitle = a;
+            if (byTitle == null && t.length() <= 30 && isMarkTitle(t)) byTitle = a;
         }
         return byTitle;
     }
@@ -62,7 +65,7 @@ public class NotifListener extends NotificationListenerService {
             try {
                 a.actionIntent.send(ctx, 0, new Intent());
                 Diag.log("«خوانده شد» زده شد: " + conv);
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
             }
         }
         NotifListener l = inst;
@@ -73,7 +76,7 @@ public class NotifListener extends NotificationListenerService {
             keyConv.remove(e.getKey());
             try {
                 l.cancelNotification(e.getKey());
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
             }
         }
     }
@@ -89,7 +92,7 @@ public class NotifListener extends NotificationListenerService {
             if (keyConv.containsValue(conv)) return; // هنوز اعلان دیگری از همین گفتگو روی گوشی هست
             markActions.remove(conv);
             if (NotifStore.get(this).markReadConv(conv)) Diag.log("روی گوشی خوانده شد: " + conv);
-        } catch (Exception ignored) {
+        } catch (Throwable ignored) {
         }
     }
 
@@ -251,7 +254,7 @@ public class NotifListener extends NotificationListenerService {
                     "conv", convKey);
             NotifStore.get(this).add(o);
             Diag.log("اعلان گرفته شد: " + o.optString("app"));
-        } catch (Exception ignored) {
+        } catch (Throwable ignored) {
         }
     }
 
