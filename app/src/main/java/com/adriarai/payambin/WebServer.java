@@ -332,6 +332,7 @@ public class WebServer {
             res.status = 204;
             return res;
         }
+        if (path.equals("/webcam") || path.startsWith("/webcam/")) return webcam(r);
         if (!path.startsWith("/api/")) return Res.err(404, "not found");
 
         // POST فقط با JSON (جلوگیری از ارسال فرم از سایت‌های دیگر)
@@ -642,37 +643,13 @@ public class WebServer {
                 return res;
             }
 
-            case "/api/cam/stream": {
-                Res res = new Res();
-                res.type = "multipart/x-mixed-replace; boundary=pbframe";
-                res.writer = out -> {
-                    CameraService.viewers.incrementAndGet();
-                    try {
-                        long last = -1;
-                        while (true) {
-                            byte[] f;
-                            long s;
-                            synchronized (CameraService.LOCK) {
-                                if (CameraService.seq == last) CameraService.LOCK.wait(2000);
-                                f = CameraService.frame;
-                                s = CameraService.seq;
-                            }
-                            String cs = CameraService.state;
-                            if (cs.equals("off") || cs.equals("error") || cs.equals("ready")) break;
-                            if (f == null || s == last) continue;
-                            last = s;
-                            out.write(("--pbframe\r\nContent-Type: image/jpeg\r\nContent-Length: " + f.length + "\r\n\r\n")
-                                    .getBytes(StandardCharsets.ISO_8859_1));
-                            out.write(f);
-                            out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
-                            out.flush();
-                        }
-                    } finally {
-                        CameraService.viewers.decrementAndGet();
-                    }
-                };
-                return res;
-            }
+            case "/api/webcam":
+                if (r.method.equals("POST") && "newkey".equals(r.json().optString("action"))) Prefs.newWebcamKey(ctx);
+                return Res.json(J.obj("key", Prefs.webcamKey(ctx)));
+
+            case "/api/cam/stream":
+                return mjpeg();
+
 
             case "/api/handoff": {
                 java.util.List<String> ips = Net.localIps();
@@ -879,6 +856,103 @@ public class WebServer {
         Res res = Res.json(J.obj("ok", true));
         res.headers.add("Set-Cookie: pb=" + token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000");
         return res;
+    }
+
+    /** جریان MJPEG دوربین (برای صفحه‌ی خود برنامه و وب‌کم) */
+    private Res mjpeg() {
+        Res res = new Res();
+        res.type = "multipart/x-mixed-replace; boundary=pbframe";
+        res.headers.add("Cache-Control: no-store");
+        res.writer = out -> {
+            CameraService.viewers.incrementAndGet();
+            try {
+                long last = -1;
+                while (true) {
+                    byte[] f;
+                    long s;
+                    synchronized (CameraService.LOCK) {
+                        if (CameraService.seq == last) CameraService.LOCK.wait(2000);
+                        f = CameraService.frame;
+                        s = CameraService.seq;
+                    }
+                    String cs = CameraService.state;
+                    if (cs.equals("off") || cs.equals("error") || cs.equals("ready")) break;
+                    if (f == null || s == last) continue;
+                    last = s;
+                    out.write(("--pbframe\r\nContent-Type: image/jpeg\r\nContent-Length: " + f.length + "\r\n\r\n")
+                            .getBytes(StandardCharsets.ISO_8859_1));
+                    out.write(f);
+                    out.write("\r\n".getBytes(StandardCharsets.ISO_8859_1));
+                    out.flush();
+                }
+            } finally {
+                CameraService.viewers.decrementAndGet();
+            }
+        };
+        return res;
+    }
+
+    /**
+     * وب‌کم: /webcam?k=… صفحه‌ی تمام‌صفحه‌ی تصویر دوربین برای OBS (Browser Source) → دوربین مجازی ویندوز.
+     * بدون ورود، فقط با کلید مخصوص وب‌کم.
+     */
+    private Res webcam(Req r) throws Exception {
+        String k = r.query.get("k");
+        if (k == null || !k.equals(Prefs.webcamKey(ctx))) {
+            Res res = new Res();
+            res.status = 403;
+            res.type = "text/html; charset=utf-8";
+            res.body = "<meta charset=utf-8><body style='background:#111;color:#eee;font:20px tahoma;display:grid;place-items:center;height:90vh;direction:rtl'>لینک وب‌کم نامعتبر است — لینک تازه را از برنامه‌ی پیام‌بین (زبانه‌ی دوربین ← وب‌کم) کپی کنید</body>"
+                    .getBytes(StandardCharsets.UTF_8);
+            return res;
+        }
+        switch (r.path) {
+            case "/webcam":
+            case "/webcam/": {
+                Res res = new Res();
+                res.type = "text/html; charset=utf-8";
+                res.headers.add("Cache-Control: no-store");
+                res.body = asset("webcam.html");
+                return res;
+            }
+            case "/webcam/state": {
+                if ("1".equals(r.query.get("start"))) {
+                    String f = r.query.get("facing"), q = r.query.get("q"), fps = r.query.get("fps");
+                    boolean change = false;
+                    if (f != null && (f.equals("front") || f.equals("back")) && !f.equals(CameraService.facing)) { CameraService.facing = f; change = true; }
+                    if (q != null && (q.equals("low") || q.equals("mid") || q.equals("high")) && !q.equals(CameraService.quality)) { CameraService.quality = q; change = true; }
+                    if (fps != null) try {
+                        int v = Math.max(5, Math.min(30, Integer.parseInt(fps)));
+                        if (v != CameraService.targetFps) { CameraService.targetFps = v; change = true; }
+                    } catch (NumberFormatException ignored) {
+                    }
+                    String s = CameraService.state;
+                    if (s.equals("off") || s.equals("ready") || s.equals("error") || (change && s.equals("on")))
+                        CameraService.request(ctx);
+                }
+                return Res.json(J.put(CameraService.status(), "standby", Prefs.camStandby(ctx)));
+            }
+            case "/webcam/stream":
+                return mjpeg();
+        }
+        return Res.err(404, "not found");
+    }
+
+    private final java.util.Map<String, byte[]> assets = new java.util.HashMap<>();
+
+    private synchronized byte[] asset(String name) throws IOException {
+        byte[] b = assets.get(name);
+        if (b == null) {
+            InputStream in = ctx.getAssets().open(name);
+            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+            in.close();
+            b = bo.toByteArray();
+            assets.put(name, b);
+        }
+        return b;
     }
 
     private synchronized byte[] index() throws IOException {

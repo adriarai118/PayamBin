@@ -72,6 +72,22 @@ public final class Prefs {
         return sb.toString();
     }
 
+    /** کلید لینک وب‌کم (OBS بدون ورود با این لینک تصویر دوربین را می‌گیرد) */
+    public static String webcamKey(Context c) {
+        String k = sp(c).getString("webcam_key", null);
+        if (k == null) k = newWebcamKey(c);
+        return k;
+    }
+
+    public static String newWebcamKey(Context c) {
+        byte[] b = new byte[9];
+        RND.nextBytes(b);
+        StringBuilder sb = new StringBuilder();
+        for (byte x : b) sb.append(String.format("%02x", x));
+        sp(c).edit().putString("webcam_key", sb.toString()).apply();
+        return sb.toString();
+    }
+
     // ---------- اشتراک اینترنت (پروکسی) ----------
     public static boolean proxyOn(Context c) {
         return sp(c).getBoolean("proxy_on", false);

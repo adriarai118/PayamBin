@@ -111,6 +111,14 @@ main{flex:1;min-height:0;display:flex}
 .n .x{white-space:pre-wrap;word-wrap:break-word;line-height:1.85}
 .n .s{color:var(--acc);font-weight:600}
 .n.new{border-color:var(--acc2)}
+.wcbox{max-width:680px}
+.wcopts{display:flex;flex-wrap:wrap;gap:8px 14px;margin:12px 0;font-size:13px}
+.wcopts label{display:flex;gap:6px;align-items:center}
+.wclink{display:flex;gap:6px}
+.wclink input{flex:1;font:12px monospace;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-width:0}
+.wcsteps{padding-inline-start:20px;line-height:1.9;font-size:13.5px;margin:6px 0}
+.wcsteps code{background:var(--bg);padding:1px 5px;border-radius:4px;direction:ltr;display:inline-block}
+.wctips{background:var(--accsoft);border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.9}
 .ctx{position:fixed;z-index:9999;min-width:220px;max-width:320px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.22);padding:6px;font-size:13px;direction:rtl;animation:ctxIn .1s ease-out}
 @keyframes ctxIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
 .ctx .hd{padding:4px 10px 6px;color:var(--mute);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-bottom:1px solid var(--line);margin-bottom:4px}
@@ -401,6 +409,7 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
           <button id="camFull" title="تمام‌صفحه">⛶ تمام‌صفحه</button>
           <button id="camAudio" title="شنیدن زنده‌ی صدای گوشی">🔇 صدا</button>
           <button id="camRec" title="ضبط روی همین کامپیوتر">⏺ ضبط</button>
+          <button id="camWebcam" title="استفاده از دوربین گوشی به‌عنوان وب‌کم ویندوز (Zoom، Skype، Meet، بله و…)">🎥 وب‌کم</button>
         </div>
         <div class="recopts">
           <label>ذخیره‌ی خودکار هر <select id="recSeg"><option value="5">۵ دقیقه</option><option value="10" selected>۱۰ دقیقه</option><option value="30">۳۰ دقیقه</option><option value="0">فقط در پایان</option></select></label>
@@ -465,6 +474,36 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
   </main>
 </div>
 
+<div class="modal hidden" id="wcModal">
+  <div class="sheet wcbox">
+    <div style="display:flex;align-items:center"><h2 style="flex:1">🎥 دوربین گوشی به‌عنوان وب‌کم</h2><button id="wcClose">بستن</button></div>
+    <p class="mute">تصویر دوربین گوشی در ویندوز به شکل یک وب‌کم واقعی دیده می‌شود و در Zoom، Skype، Google Meet، اسکای‌روم، بله و هر برنامه‌ی دیگری قابل انتخاب است. این کار با برنامه‌ی رایگان <b>OBS Studio</b> انجام می‌شود (فقط یک بار تنظیم لازم دارد).</p>
+    <div class="wcopts">
+      <label>دوربین <select id="wcFacing"><option value="front">جلو (سلفی)</option><option value="back">عقب</option></select></label>
+      <label>کیفیت <select id="wcQ"><option value="mid">متوسط</option><option value="high" selected>بالا</option><option value="low">کم</option></select></label>
+      <label>فریم <select id="wcFps"><option value="15">۱۵</option><option value="24">۲۴</option><option value="30" selected>۳۰</option></select></label>
+      <label>قاب <select id="wcFit"><option value="blur">کامل + پس‌زمینه‌ی محو</option><option value="cover">پر کردن (برش لبه‌ها)</option><option value="contain">کامل + حاشیه‌ی سیاه</option></select></label>
+      <label>چرخش <select id="wcRot"><option value="0">خودکار</option><option value="90">۹۰°</option><option value="180">۱۸۰°</option><option value="270">۲۷۰°</option></select></label>
+      <label><input type="checkbox" id="wcMirror"> آینه‌ای</label>
+    </div>
+    <div class="wclink"><input id="wcUrl" readonly dir="ltr"><button class="pri" id="wcCopy">کپی لینک</button><button id="wcTest">پیش‌نمایش</button></div>
+    <div class="mute" style="font-size:12px;margin-top:4px">این لینک بدون رمز کار می‌کند؛ فقط در OBS بگذارید. <a href="#" id="wcNewKey">ساختن لینک جدید</a> (لینک قبلی از کار می‌افتد)</div>
+    <h3>راه‌اندازی (یک بار)</h3>
+    <ol class="wcsteps">
+      <li><b>OBS Studio</b> را نصب کنید (رایگان، از obsproject.com). روی سیستم بدون اینترنت، فایل نصب را با یک کامپیوتر دیگر بگیرید و بیاورید؛ می‌توانید از همین پیام‌بین هم منتقلش کنید.</li>
+      <li>در OBS، پایین در بخش <b>Sources</b> روی <b>+</b> بزنید ← <b>Browser</b> ← یک نام بدهید ← OK.</li>
+      <li>در کادر <b>URL</b> لینک بالا را Paste کنید، <b>Width</b> را <code>1280</code> و <b>Height</b> را <code>720</code> بگذارید ← OK.</li>
+      <li>سمت راست پایین، در بخش <b>Controls</b> روی <b>Start Virtual Camera</b> بزنید.</li>
+      <li>در Zoom / Skype / Meet / بله، از تنظیمات تصویر، دوربین <b>OBS Virtual Camera</b> را انتخاب کنید.</li>
+    </ol>
+    <div class="wctips">
+      💡 دوربین گوشی با باز شدن OBS خودکار روشن می‌شود. برای اینکه لازم نباشد روی گوشی تأیید کنید، در برنامه‌ی پیام‌بین روی گوشی ← تنظیمات، <b>«همیشه آماده»</b> را روشن کنید.<br>
+      💡 گوشی را روی پایه یا تکیه‌گاه بگذارید و به شارژ بزنید. دوربین عقب کیفیت خیلی بهتری دارد.<br>
+      💡 صدای جلسه از میکروفون خود کامپیوتر (یا هدست) گرفته می‌شود.<br>
+      💡 بعد از هر تغییر گزینه‌های بالا، لینک جدید را دوباره در OBS بگذارید (روی Browser دوبار کلیک ← URL).
+    </div>
+  </div>
+</div>
 <div class="modal hidden" id="clipModal">
   <div class="sheet clipbox">
     <div style="display:flex;align-items:center"><h2 style="flex:1">📋 کلیپ‌بورد مشترک</h2><button id="closeClip">بستن</button></div>
@@ -2133,6 +2172,42 @@ renderBell();
   }, true);
   window.addEventListener('scroll', e => { if (menu && !menu.contains(e.target)) close(); }, true);
   window.addEventListener('resize', close); window.addEventListener('blur', close);
+})();
+
+/* ---------- وب‌کم ---------- */
+(function () {
+  let key = '';
+  const ids = ['wcFacing', 'wcQ', 'wcFps', 'wcFit', 'wcRot', 'wcMirror'];
+  const saved = (() => { try { return JSON.parse(lsGet('pb_webcam') || '{}'); } catch (e) { return {}; } })();
+  ids.forEach(id => { const el = $('#' + id); if (saved[id] !== undefined) { if (el.type === 'checkbox') el.checked = saved[id]; else el.value = saved[id]; } });
+  function url() {
+    const q = new URLSearchParams({k: key, facing: $('#wcFacing').value, q: $('#wcQ').value, fps: $('#wcFps').value, fit: $('#wcFit').value});
+    if ($('#wcRot').value !== '0') q.set('rot', $('#wcRot').value);
+    if ($('#wcMirror').checked) q.set('mirror', '1');
+    return location.origin + '/webcam?' + q;
+  }
+  function upd() {
+    const o = {}; ids.forEach(id => { const el = $('#' + id); o[id] = el.type === 'checkbox' ? el.checked : el.value; });
+    lsSet('pb_webcam', JSON.stringify(o));
+    $('#wcUrl').value = key ? url() : '…';
+  }
+  ids.forEach(id => $('#' + id).addEventListener('change', upd));
+  async function open() {
+    $('#wcModal').classList.remove('hidden');
+    try { key = (await api('/api/webcam')).key; } catch (e) { if (!(e instanceof AuthError)) toast(e.message); }
+    upd();
+  }
+  $('#camWebcam').onclick = open;
+  $('#wcClose').onclick = () => $('#wcModal').classList.add('hidden');
+  $('#wcModal').addEventListener('click', e => { if (e.target.id === 'wcModal') $('#wcModal').classList.add('hidden'); });
+  $('#wcCopy').onclick = () => copy($('#wcUrl').value);
+  $('#wcUrl').onclick = e => e.target.select();
+  $('#wcTest').onclick = () => window.open(url(), 'pbwebcam', 'width=960,height=540');
+  $('#wcNewKey').onclick = async e => {
+    e.preventDefault();
+    if (!confirm('لینک جدید ساخته شود؟ لینکی که الان در OBS است دیگر کار نمی‌کند.')) return;
+    try { key = (await api('/api/webcam', {method: 'POST', body: JSON.stringify({action: 'newkey'})})).key; upd(); toast('لینک جدید ساخته شد — در OBS عوضش کنید'); } catch (err) {}
+  };
 })();
 </script>
 </body>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>پیام‌بین — وب‌کم</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  #msg{position:fixed;inset:0;display:grid;place-items:center;color:#cbd5e1;font:500 min(4.2vw,30px)/1.7 Tahoma,Vazirmatn,sans-serif;text-align:center;padding:5vw;pointer-events:none}
+  #msg small{display:block;font-size:.6em;opacity:.7}
+  #msg.hide{display:none}
+  img{display:none}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="msg">در حال اتصال به گوشی…</div>
+<img id="src" alt="">
+<script>
+/*
+  پارامترها:
+  k      کلید وب‌کم (الزامی)
+  facing front | back
+  q      low | mid | high
+  fps    5..30
+  fit    blur (کامل با پس‌زمینه‌ی محو) | cover (پر کردن با برش) | contain (کامل با حاشیه‌ی سیاه)
+  mirror 1 = آینه‌ای
+  rot    0 | 90 | 180 | 270  (چرخش اضافه)
+  quiet  1 = هیچ متنی روی تصویر ننویس
+*/
+const P = new URLSearchParams(location.search);
+const K = P.get('k') || '';
+const FIT = P.get('fit') || 'blur', MIRROR = P.get('mirror') === '1', ROT = Number(P.get('rot') || 0), QUIET = P.get('quiet') === '1';
+const startQ = new URLSearchParams({k: K, start: '1'});
+['facing', 'q', 'fps'].forEach(n => { if (P.get(n)) startQ.set(n, P.get(n)); });
+
+const cv = document.getElementById('cv'), cx = cv.getContext('2d'), img = document.getElementById('src'), msg = document.getElementById('msg');
+let cam = {}, live = false, lastFrameAt = 0, imgW = 0, imgH = 0;
+
+function say(t, sub) {
+  if (QUIET) { msg.classList.add('hide'); return; }
+  msg.innerHTML = t + (sub ? '<small>' + sub + '</small>' : '');
+  msg.classList.remove('hide');
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/webcam/state?' + startQ, {cache: 'no-store'});
+    if (r.status === 403) { say('لینک وب‌کم نامعتبر است', 'لینک تازه را از پیام‌بین کپی کنید'); return setTimeout(poll, 10000); }
+    cam = await r.json();
+    if (cam.state === 'on') {
+      if (!live) { live = true; img.src = '/webcam/stream?k=' + encodeURIComponent(K) + '&t=' + Date.now(); }
+    } else {
+      live = false; img.removeAttribute('src');
+      if (cam.state === 'waiting_tap') say('روی گوشی، اعلان «📷 لمس کنید» را لمس کنید', 'برای اینکه هر بار لازم نباشد: پیام‌بین روی گوشی ← تنظیمات ← «همیشه آماده»');
+      else if (cam.state === 'error') say('دوربین گوشی روشن نشد', cam.error || '');
+      else say('در حال روشن کردن دوربین گوشی…');
+    }
+  } catch (e) {
+    live = false; img.removeAttribute('src');
+    say('گوشی در دسترس نیست', 'پیام‌بین روی گوشی روشن است؟ هر دو در یک شبکه‌اند؟');
+  }
+  setTimeout(poll, live ? 3000 : 1500);
+}
+
+img.onload = () => { lastFrameAt = performance.now(); };
+img.onerror = () => { live = false; };
+
+function size() {
+  const d = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.round(innerWidth * d); cv.height = Math.round(innerHeight * d);
+}
+addEventListener('resize', size); size();
+
+// فریم را با چرخش/آینه/حالت قرارگیری روی بوم می‌کشد
+function drawFrame(rot, mode, alpha) {
+  const W = cv.width, H = cv.height, iw = img.naturalWidth, ih = img.naturalHeight;
+  const side = rot % 180 === 90, fw = side ? ih : iw, fh = side ? iw : ih;
+  const s = mode === 'cover' ? Math.max(W / fw, H / fh) : Math.min(W / fw, H / fh);
+  cx.save();
+  cx.globalAlpha = alpha;
+  cx.translate(W / 2, H / 2);
+  cx.rotate(rot * Math.PI / 180);
+  if (MIRROR) cx.scale(side ? 1 : -1, side ? -1 : 1);
+  cx.drawImage(img, -iw * s / 2, -ih * s / 2, iw * s, ih * s);
+  cx.restore();
+}
+
+function render() {
+  requestAnimationFrame(render);
+  const ok = live && img.complete && img.naturalWidth > 0;
+  if (!ok) { cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height); return; }
+  msg.classList.add('hide');
+  const rot = (((cam.orientation || 0) + ROT) % 360 + 360) % 360;
+  cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height);
+  if (FIT === 'blur') {
+    cx.filter = 'blur(28px) brightness(.6)';
+    drawFrame(rot, 'cover', 1);
+    cx.filter = 'none';
+    drawFrame(rot, 'contain', 1);
+  } else drawFrame(rot, FIT === 'cover' ? 'cover' : 'contain', 1);
+}
+render();
+poll();
+</script>
+</body>
+</html>
