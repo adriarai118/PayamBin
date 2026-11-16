@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" id="favicon">
 <title>پیام‌بین</title>
 <style>
 :root{
@@ -713,6 +714,18 @@ function findCode(text) {
   return best;
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { unseen = 0; document.title = 'پیام‌بین'; } });
+/* لوگو در تب مرورگر؛ وقتی پیام نخوانده هست یک نقطه‌ی قرمز رویش می‌آید */
+let favSvg = null, favDot = null;
+async function updateFavicon() {
+  const n = (st.threads || []).reduce((a, t) => a + (t.unread || 0), 0) + ((st.notifs || []).filter(x => !x.read && !x.out).length);
+  const dot = n > 0;
+  if (dot === favDot) return;
+  favDot = dot;
+  if (!favSvg) { try { favSvg = await (await fetch('/favicon.svg')).text(); } catch (e) { return; } }
+  const svg = dot ? favSvg.replace('</svg>', '<circle cx="86" cy="22" r="17" fill="#ef4444" stroke="#fff" stroke-width="5"/></svg>') : favSvg;
+  $('#favicon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+setInterval(updateFavicon, 2000);
 
 /* ---------- وضعیت ---------- */
 const st = {

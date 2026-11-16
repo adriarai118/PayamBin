@@ -327,9 +327,11 @@ public class WebServer {
             res.body = ProxyServer.pac(ips.isEmpty() ? "127.0.0.1" : ips.get(0), Prefs.proxyPort(ctx)).getBytes(StandardCharsets.UTF_8);
             return res;
         }
-        if (path.equals("/favicon.ico")) {
+        if (path.equals("/favicon.ico") || path.equals("/favicon.svg")) {
             Res res = new Res();
-            res.status = 204;
+            res.type = "image/svg+xml";
+            res.headers.add("Cache-Control: max-age=86400");
+            res.body = asset("favicon.svg");
             return res;
         }
         if (path.equals("/webcam") || path.startsWith("/webcam/")) return webcam(r);
