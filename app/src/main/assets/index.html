@@ -111,6 +111,12 @@ main{flex:1;min-height:0;display:flex}
 .n .x{white-space:pre-wrap;word-wrap:break-word;line-height:1.85}
 .n .s{color:var(--acc);font-weight:600}
 .n.new{border-color:var(--acc2)}
+.fbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}
+.fbar .fm{margin-inline-end:auto}
+.fbar input{padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;font-size:12.5px;width:150px}
+.fbar select,.fbar button{font-size:12.5px}
+.fbar select{padding:5px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.fmore{display:block;margin:6px auto 0;font-size:12.5px}
 .wcbox{max-width:680px}
 .wcopts{display:flex;flex-wrap:wrap;gap:8px 14px;margin:12px 0;font-size:13px}
 .wcopts label{display:flex;gap:6px;align-items:center}
@@ -376,11 +382,13 @@ a>button{color:var(--ink)} a>button.pri{color:#fff} a:has(>button){text-decorati
           <div class="drop" id="drop">فایل را اینجا بکشید و رها کنید، یا کلیک کنید<br><small>در گوشی: پوشه‌ی Download/PayamBin</small></div>
           <input type="file" id="fileIn" multiple class="hidden">
           <div id="upProg"></div>
+          <div class="fbar hidden" id="inBar"><span class="fm" id="inSum"></span><input type="search" id="inQ" placeholder="جستجوی نام فایل…"><select id="inAge"><option value="0">همه</option><option value="86400000">قدیمی‌تر از ۱ روز</option><option value="604800000">قدیمی‌تر از ۷ روز</option><option value="2592000000">قدیمی‌تر از ۳۰ روز</option></select><button data-clear="in">🧹 پاک کردن فهرست</button></div>
           <div id="inList"></div>
         </div>
         <div class="fsec">
           <h3>📥 فرستاده‌شده از گوشی <span class="sp"></span></h3>
           <p class="mute" style="margin:0 0 6px;font-size:13px;color:var(--mute)">در گوشی روی هر فایل یا متن «اشتراک‌گذاری ← ارسال به کامپیوتر» را بزنید.</p>
+          <div class="fbar hidden" id="outBar"><span class="fm" id="outSum"></span><input type="search" id="outQ" placeholder="جستجوی نام فایل…"><select id="outAge"><option value="0">همه</option><option value="86400000">قدیمی‌تر از ۱ روز</option><option value="604800000">قدیمی‌تر از ۷ روز</option><option value="2592000000">قدیمی‌تر از ۳۰ روز</option></select><button data-clear="out">🧹 پاک کردن فهرست</button></div>
           <div id="outList"></div>
         </div>
         <div class="fsec">
@@ -1320,22 +1328,54 @@ async function refreshFiles() {
   st.outCount = r.out.length;
   if (st.seenFiles === null || st.tab === 'files') st.seenFiles = st.outCount;
   renderFilesBadge();
+  st.files = r;
+  renderFileLists();
+}
+const FILE_PAGE = 15;
+st.fileShow = {in: FILE_PAGE, out: FILE_PAGE};
+function renderFileLists() {
+  const r = st.files; if (!r) return;
+  const pick = box => {
+    const q = toLatin($('#' + box + 'Q').value.trim()).toLowerCase();
+    const all = q ? r[box].filter(f => toLatin(f.name).toLowerCase().includes(q)) : r[box];
+    const total = r[box].reduce((a, f) => a + f.size, 0);
+    $('#' + box + 'Bar').classList.toggle('hidden', !r[box].length);
+    $('#' + box + 'Sum').textContent = faNum(r[box].length) + ' فایل · ' + fmtSize(total);
+    const more = all.length > st.fileShow[box] ? `<button class="fmore" data-more="${box}">نمایش ${faNum(all.length - st.fileShow[box])} فایل دیگر</button>` : '';
+    return {list: all.slice(0, st.fileShow[box]), more, empty: q && !all.length ? '<div class="fm">چیزی پیدا نشد</div>' : ''};
+  };
   const share = n => `<button data-share="ir.nasim" data-n="${esc(n)}">بله</button><button data-share="com.whatsapp" data-n="${esc(n)}">واتس‌اپ</button><button data-share="org.telegram.messenger" data-n="${esc(n)}">تلگرام</button><button data-share="" data-n="${esc(n)}">سایر…</button>`;
-  $('#inList').innerHTML = r.in.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
-      <span class="fm">فرستادن در:</span>${share(f.name)}<a href="${fileUrl('in', f.name)}"><button>دانلود</button></a><button data-del="in" data-n="${esc(f.name)}">حذف</button></div>`).join('')
-    || '';
-  $('#outList').innerHTML = r.out.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
-      ${/^(image|video|application\/pdf|text)/.test(f.mime) ? `<a href="${fileUrl('out', f.name, 0)}" target="_blank"><button>نمایش</button></a>` : ''}<a href="${fileUrl('out', f.name)}"><button class="pri">دانلود</button></a><button data-del="out" data-n="${esc(f.name)}">حذف</button></div>`).join('')
-    || '<div class="fm">چیزی فرستاده نشده</div>';
+  const I = pick('in'), O = pick('out');
+  $('#inList').innerHTML = I.list.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
+      <span class="fm">فرستادن در:</span>${share(f.name)}<a href="${fileUrl('in', f.name)}"><button>دانلود</button></a><button data-del="in" data-n="${esc(f.name)}">حذف</button></div>`).join('') + I.more
+    || I.empty;
+  $('#outList').innerHTML = O.list.map(f => `<div class="frow"><span class="fn" title="${esc(f.name)}">${esc(f.name)}</span><span class="fm">${fmtSize(f.size)} · ${when(f.time)}</span>
+      ${/^(image|video|application\/pdf|text)/.test(f.mime) ? `<a href="${fileUrl('out', f.name, 0)}" target="_blank"><button>نمایش</button></a>` : ''}<a href="${fileUrl('out', f.name)}"><button class="pri">دانلود</button></a><button data-del="out" data-n="${esc(f.name)}">حذف</button></div>`).join('') + O.more
+    || O.empty || '<div class="fm">چیزی فرستاده نشده</div>';
 }
 $('#filesView').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.share !== undefined) shareTo(b.dataset.n, b.dataset.share);
+  if (b.dataset.more) { st.fileShow[b.dataset.more] += 50; renderFileLists(); return; }
+  if (b.dataset.clear) {
+    const box = b.dataset.clear, age = Number($('#' + box + 'Age').value);
+    const n = st.files[box].filter(f => !age || Date.now() - f.time > age).length;
+    if (!n) { toast('فایلی با این شرط نیست'); return; }
+    const where = box === 'in' ? '\n\nنسخه‌ای که در پوشه‌ی Download/PayamBin گوشی ذخیره شده باقی می‌ماند.' : '';
+    if (!confirm(`${faNum(n)} فایل از فهرست «${box === 'in' ? 'فرستاده‌شده به گوشی' : 'فرستاده‌شده از گوشی'}» پاک شود؟${where}`)) return;
+    try {
+      const res = await api('/api/files/clear', {method: 'POST', body: JSON.stringify({box, olderThanMs: age})});
+      toast(`${faNum(res.count)} فایل پاک شد (${fmtSize(res.bytes)} آزاد شد)`);
+      st.fileShow[box] = FILE_PAGE; refreshFiles();
+    } catch (err) {}
+    return;
+  }
   if (b.dataset.del) {
     if (!confirm('«' + b.dataset.n + '» حذف شود؟')) return;
     try { await api('/api/files/delete', {method: 'POST', body: JSON.stringify({box: b.dataset.del, name: b.dataset.n})}); refreshFiles(); } catch (err) {}
   }
 });
+['in', 'out'].forEach(box => $('#' + box + 'Q').addEventListener('input', () => { st.fileShow[box] = FILE_PAGE; renderFileLists(); }));
 async function loadMedia() {
   st.mediaLoaded = true;
   $('#media').innerHTML = '<div class="fm">در حال بارگذاری…</div>';

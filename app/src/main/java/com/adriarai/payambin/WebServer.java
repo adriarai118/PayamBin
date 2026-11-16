@@ -440,6 +440,26 @@ public class WebServer {
                 return Res.json(J.obj("ok", true));
             }
 
+            case "/api/files/clear": {
+                if (!r.method.equals("POST")) return Res.err(400, "POST required");
+                JSONObject b = r.json();
+                String box = "out".equals(b.optString("box")) ? "out" : "in";
+                long older = Math.max(0, b.optLong("olderThanMs"));
+                long cut = System.currentTimeMillis() - older;
+                java.io.File[] fs = FileStore.dir(ctx, box).listFiles();
+                int n = 0;
+                long bytes = 0;
+                if (fs != null) for (java.io.File f : fs) {
+                    if (!f.isFile() || f.getName().endsWith(".part")) continue;
+                    if (older > 0 && f.lastModified() > cut) continue;
+                    long len = f.length();
+                    if (f.delete()) { n++; bytes += len; }
+                }
+                NotifStore.Versions.files.incrementAndGet();
+                Diag.log("فهرست فایل‌ها پاک شد (" + box + "): " + n + " فایل");
+                return Res.json(J.obj("ok", true, "count", n, "bytes", bytes));
+            }
+
             case "/api/files/share": {
                 if (!r.method.equals("POST")) return Res.err(400, "POST required");
                 JSONObject b = r.json();
